@@ -5,6 +5,16 @@
  */
 
 const { contextBridge, ipcRenderer } = require('electron');
+const path = require('path');
+
+// 앱 버전 가져오기 (경로 문제 해결)
+let appVersion = '1.0.0';
+try {
+    const packagePath = path.join(__dirname, '..', 'package.json');
+    appVersion = require(packagePath).version;
+} catch (e) {
+    console.warn('Failed to load package.json version:', e.message);
+}
 
 // API를 window.lawpro로 노출
 contextBridge.exposeInMainWorld('lawpro', {
@@ -208,5 +218,5 @@ contextBridge.exposeInMainWorld('lawpro', {
     // 시스템 정보
     // ========================================
     platform: process.platform,
-    appVersion: require('../package.json').version
+    appVersion: appVersion
 });
