@@ -25,9 +25,14 @@ const store = new Store({
     defaults: {
         upstageKey: '',
         geminiKey: '',
+        openaiKey: '',
         lastFolder: '',
         claudeConnected: false,
         geminiModel: 'flash-2.0',
+        openaiModel: 'gpt-4o',
+        selectedAI: 'claude',  // claude, gemini, openai
+        generateCleanHtml: true,
+        generateMarkdown: true,
         theme: 'dark'
     }
 });
@@ -169,7 +174,7 @@ function getPythonCommand() {
 // ============================================================
 // IPC 핸들러: 문서 변환
 // ============================================================
-ipcMain.handle('start-conversion', async (event, { folderPath, apiKey }) => {
+ipcMain.handle('start-conversion', async (event, { folderPath, apiKey, generateClean, generateMarkdown }) => {
     return new Promise((resolve, reject) => {
         const pythonCmd = getPythonCommand();
 
@@ -188,8 +193,20 @@ ipcMain.handle('start-conversion', async (event, { folderPath, apiKey }) => {
         // 마지막 폴더 저장
         store.set('lastFolder', folderPath);
 
-        // Python 프로세스 시작
-        pythonProcess = spawn(pythonCmd, [scriptPath, folderPath, apiKey || ''], {
+        // 출력 옵션 (기본값 사용)
+        const cleanOpt = generateClean !== undefined ? generateClean : store.get('generateCleanHtml', true);
+        const mdOpt = generateMarkdown !== undefined ? generateMarkdown : store.get('generateMarkdown', true);
+
+        // Python 프로세스 시작 (추가 인자 포함)
+        const args = [
+            scriptPath,
+            folderPath,
+            apiKey || '',
+            cleanOpt ? 'true' : 'false',
+            mdOpt ? 'true' : 'false'
+        ];
+
+        pythonProcess = spawn(pythonCmd, args, {
             cwd: enginePath,
             env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
         });
@@ -424,6 +441,102 @@ ipcMain.handle('run-gemini-review', async (event, { folderPath }) => {
             reject(err);
         });
     });
+});
+
+// ============================================================
+// IPC 핸들러: OpenAI 설정
+// ============================================================
+ipcMain.handle('save-openai-key', async (event, key) => {
+    store.set('openaiKey', key);
+    return { success: true };
+});
+
+ipcMain.handle('get-openai-key', async () => {
+    return store.get('openaiKey', '');
+});
+
+ipcMain.handle('set-openai-model', async (event, model) => {
+    store.set('openaiModel', model);
+    return { success: true };
+});
+
+ipcMain.handle('get-openai-model', async () => {
+    return store.get('openaiModel', 'gpt-4o');
+});
+
+// OpenAI 검수 실행
+ipcMain.handle('run-openai-review', async (event, { folderPath }) => {
+    return new Promise((resolve, reject) => {
+        const pythonCmd = getPythonCommand();
+
+        if (!pythonCmd) {
+            reject(new Error('Python 3이 설치되어 있지 않습니다.'));
+            return;
+        }
+
+        const apiKey = store.get('openaiKey');
+        if (!apiKey) {
+            reject(new Error('OpenAI API 키가 설정되지 않았습니다.'));
+            return;
+        }
+
+        const model = store.get('openaiModel', 'gpt-4o');
+        const scriptPath = path.join(enginePath, 'openai_agent.py');
+
+        const openaiProcess = spawn(pythonCmd, [scriptPath, folderPath, apiKey, model], {
+            cwd: enginePath,
+            env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+        });
+
+        openaiProcess.stdout.on('data', (data) => {
+            const lines = data.toString().split('\n').filter(Boolean);
+            for (const line of lines) {
+                try {
+                    const json = JSON.parse(line);
+                    mainWindow?.webContents.send('openai-log', json);
+                } catch (e) {
+                    mainWindow?.webContents.send('openai-log', { type: 'log', msg: line });
+                }
+            }
+        });
+
+        openaiProcess.stderr.on('data', (data) => {
+            mainWindow?.webContents.send('openai-log', { type: 'error', msg: data.toString() });
+        });
+
+        openaiProcess.on('close', (code) => {
+            resolve({ success: code === 0, code });
+        });
+
+        openaiProcess.on('error', (err) => {
+            reject(err);
+        });
+    });
+});
+
+// ============================================================
+// IPC 핸들러: AI 선택 및 출력 옵션
+// ============================================================
+ipcMain.handle('set-selected-ai', async (event, ai) => {
+    store.set('selectedAI', ai);
+    return { success: true };
+});
+
+ipcMain.handle('get-selected-ai', async () => {
+    return store.get('selectedAI', 'claude');
+});
+
+ipcMain.handle('set-output-options', async (event, { generateClean, generateMarkdown }) => {
+    store.set('generateCleanHtml', generateClean);
+    store.set('generateMarkdown', generateMarkdown);
+    return { success: true };
+});
+
+ipcMain.handle('get-output-options', async () => {
+    return {
+        generateCleanHtml: store.get('generateCleanHtml', true),
+        generateMarkdown: store.get('generateMarkdown', true)
+    };
 });
 
 // ============================================================
