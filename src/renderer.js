@@ -642,11 +642,15 @@ async function saveGeminiKey() {
         return;
     }
 
-    await window.lawpro.saveGeminiKey(key);
-    if (elements.settingsGeminiKey) elements.settingsGeminiKey.value = key;
-
-    elements.geminiConnectionBadge.textContent = '설정됨';
-    elements.geminiConnectionBadge.className = 'px-2 py-1 rounded-full text-xs bg-green-600/20 text-green-400';
+    const result = await window.lawpro.saveGeminiKey(key);
+    if (result.success) {
+        if (elements.settingsGeminiKey) elements.settingsGeminiKey.value = key;
+        elements.geminiConnectionBadge.textContent = '설정됨';
+        elements.geminiConnectionBadge.className = 'px-2 py-1 rounded-full text-xs bg-green-600/20 text-green-400';
+        alert('Gemini API 키가 저장되었습니다.');
+    } else {
+        alert('저장 실패: ' + (result.error || '알 수 없는 오류'));
+    }
 }
 
 async function saveGeminiKeyFromSettings() {
@@ -656,11 +660,15 @@ async function saveGeminiKeyFromSettings() {
         return;
     }
 
-    await window.lawpro.saveGeminiKey(key);
-    elements.geminiKeyInput.value = key;
-
-    elements.geminiConnectionBadge.textContent = '설정됨';
-    elements.geminiConnectionBadge.className = 'px-2 py-1 rounded-full text-xs bg-green-600/20 text-green-400';
+    const result = await window.lawpro.saveGeminiKey(key);
+    if (result.success) {
+        elements.geminiKeyInput.value = key;
+        elements.geminiConnectionBadge.textContent = '설정됨';
+        elements.geminiConnectionBadge.className = 'px-2 py-1 rounded-full text-xs bg-green-600/20 text-green-400';
+        alert('Gemini API 키가 저장되었습니다.');
+    } else {
+        alert('저장 실패: ' + (result.error || '알 수 없는 오류'));
+    }
 }
 
 async function saveOpenaiKey() {
@@ -670,9 +678,14 @@ async function saveOpenaiKey() {
         return;
     }
 
-    await window.lawpro.saveOpenaiKey(key);
-    elements.openaiConnectionBadge.textContent = '설정됨';
-    elements.openaiConnectionBadge.className = 'px-2 py-1 rounded-full text-xs bg-green-600/20 text-green-400';
+    const result = await window.lawpro.saveOpenaiKey(key);
+    if (result.success) {
+        elements.openaiConnectionBadge.textContent = '설정됨';
+        elements.openaiConnectionBadge.className = 'px-2 py-1 rounded-full text-xs bg-green-600/20 text-green-400';
+        alert('OpenAI API 키가 저장되었습니다.');
+    } else {
+        alert('저장 실패: ' + (result.error || '알 수 없는 오류'));
+    }
 }
 
 async function selectReviewFolder() {
