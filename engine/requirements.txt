@@ -10,7 +10,7 @@ PyPDF2>=3.0.0
 pdf2image>=1.16.0
 Pillow>=10.0.0
 
-# HWPX Processing (HWPX는 XML 기반이므로 lxml로 처리)
+# HWPX Processing (XML-based)
 lxml>=4.9.0
 
 # OCR Enhancement
