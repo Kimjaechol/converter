@@ -663,6 +663,84 @@ ipcMain.handle('install-packages', async () => {
 });
 
 // ============================================================
+// IPC 핸들러: 에디터 파일 작업
+// ============================================================
+ipcMain.handle('editor-open-file', async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openFile'],
+        filters: [
+            { name: 'Web Documents', extensions: ['html', 'htm', 'md', 'markdown'] },
+            { name: 'HTML Files', extensions: ['html', 'htm'] },
+            { name: 'Markdown Files', extensions: ['md', 'markdown'] },
+            { name: 'All Files', extensions: ['*'] }
+        ]
+    });
+
+    if (result.canceled || result.filePaths.length === 0) {
+        return null;
+    }
+
+    const filePath = result.filePaths[0];
+    try {
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const ext = path.extname(filePath).toLowerCase();
+        return {
+            path: filePath,
+            name: path.basename(filePath),
+            content: content,
+            type: ['.md', '.markdown'].includes(ext) ? 'markdown' : 'html'
+        };
+    } catch (err) {
+        throw new Error(`파일 읽기 실패: ${err.message}`);
+    }
+});
+
+ipcMain.handle('editor-read-file', async (event, filePath) => {
+    try {
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const ext = path.extname(filePath).toLowerCase();
+        return {
+            path: filePath,
+            name: path.basename(filePath),
+            content: content,
+            type: ['.md', '.markdown'].includes(ext) ? 'markdown' : 'html'
+        };
+    } catch (err) {
+        throw new Error(`파일 읽기 실패: ${err.message}`);
+    }
+});
+
+ipcMain.handle('editor-save-file', async (event, filePath, content) => {
+    try {
+        fs.writeFileSync(filePath, content, 'utf-8');
+        return { success: true, path: filePath };
+    } catch (err) {
+        throw new Error(`파일 저장 실패: ${err.message}`);
+    }
+});
+
+ipcMain.handle('editor-save-as', async (event, content, defaultName) => {
+    const ext = defaultName.endsWith('.md') ? 'md' : 'html';
+    const result = await dialog.showSaveDialog(mainWindow, {
+        defaultPath: defaultName,
+        filters: ext === 'md'
+            ? [{ name: 'Markdown Files', extensions: ['md'] }]
+            : [{ name: 'HTML Files', extensions: ['html', 'htm'] }]
+    });
+
+    if (result.canceled) {
+        return null;
+    }
+
+    try {
+        fs.writeFileSync(result.filePath, content, 'utf-8');
+        return { success: true, path: result.filePath, name: path.basename(result.filePath) };
+    } catch (err) {
+        throw new Error(`파일 저장 실패: ${err.message}`);
+    }
+});
+
+// ============================================================
 // IPC 핸들러: 크레딧 관리
 // ============================================================
 ipcMain.handle('set-user-email', async (event, email) => {

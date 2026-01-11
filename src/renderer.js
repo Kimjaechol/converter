@@ -17,6 +17,13 @@ const state = {
     outputFolder: null
 };
 
+// 에디터 상태
+const editorState = {
+    currentFile: null,      // 현재 열린 파일 경로
+    currentType: 'html',    // html 또는 markdown
+    isModified: false       // 수정 여부
+};
+
 // ============================================================
 // DOM 요소
 // ============================================================
@@ -24,11 +31,13 @@ const elements = {
     // 네비게이션
     navConvert: document.getElementById('navConvert'),
     navReview: document.getElementById('navReview'),
+    navEditor: document.getElementById('navEditor'),
     navSettings: document.getElementById('navSettings'),
 
     // 페이지
     pageConvert: document.getElementById('pageConvert'),
     pageReview: document.getElementById('pageReview'),
+    pageEditor: document.getElementById('pageEditor'),
     pageSettings: document.getElementById('pageSettings'),
 
     // 변환 페이지
@@ -96,7 +105,22 @@ const elements = {
     closeCreditModal: document.getElementById('closeCreditModal'),
     userEmailInput: document.getElementById('userEmailInput'),
     saveUserEmail: document.getElementById('saveUserEmail'),
-    modalCreditBalance: document.getElementById('modalCreditBalance')
+    modalCreditBalance: document.getElementById('modalCreditBalance'),
+
+    // 에디터 관련
+    editorOpenFile: document.getElementById('editorOpenFile'),
+    editorSaveFile: document.getElementById('editorSaveFile'),
+    editorFileName: document.getElementById('editorFileName'),
+    tabHtml: document.getElementById('tabHtml'),
+    tabMarkdown: document.getElementById('tabMarkdown'),
+    htmlEditorPanel: document.getElementById('htmlEditorPanel'),
+    markdownEditorPanel: document.getElementById('markdownEditorPanel'),
+    htmlCodeEditor: document.getElementById('htmlCodeEditor'),
+    htmlPreview: document.getElementById('htmlPreview'),
+    htmlFormat: document.getElementById('htmlFormat'),
+    htmlRefresh: document.getElementById('htmlRefresh'),
+    mdCodeEditor: document.getElementById('mdCodeEditor'),
+    mdPreview: document.getElementById('mdPreview')
 };
 
 // ============================================================
@@ -214,6 +238,7 @@ function setupEventListeners() {
     // 네비게이션
     elements.navConvert.addEventListener('click', () => showPage('convert'));
     elements.navReview.addEventListener('click', () => showPage('review'));
+    elements.navEditor.addEventListener('click', () => showPage('editor'));
     elements.navSettings.addEventListener('click', () => showPage('settings'));
 
     // 드롭존
@@ -826,9 +851,189 @@ function setupCreditEventListeners() {
 }
 
 // ============================================================
+// 에디터 기능
+// ============================================================
+function setupEditorEventListeners() {
+    // 파일 열기
+    elements.editorOpenFile?.addEventListener('click', openEditorFile);
+
+    // 파일 저장
+    elements.editorSaveFile?.addEventListener('click', saveEditorFile);
+
+    // 탭 전환
+    elements.tabHtml?.addEventListener('click', () => switchEditorTab('html'));
+    elements.tabMarkdown?.addEventListener('click', () => switchEditorTab('markdown'));
+
+    // HTML 코드 변경 시 미리보기 업데이트 (debounce)
+    let htmlTimeout;
+    elements.htmlCodeEditor?.addEventListener('input', () => {
+        editorState.isModified = true;
+        elements.editorSaveFile.disabled = false;
+        clearTimeout(htmlTimeout);
+        htmlTimeout = setTimeout(updateHtmlPreview, 500);
+    });
+
+    // Markdown 코드 변경 시 미리보기 업데이트 (debounce)
+    let mdTimeout;
+    elements.mdCodeEditor?.addEventListener('input', () => {
+        editorState.isModified = true;
+        elements.editorSaveFile.disabled = false;
+        clearTimeout(mdTimeout);
+        mdTimeout = setTimeout(updateMarkdownPreview, 300);
+    });
+
+    // HTML 정리 버튼
+    elements.htmlFormat?.addEventListener('click', formatHtml);
+
+    // HTML 새로고침 버튼
+    elements.htmlRefresh?.addEventListener('click', updateHtmlPreview);
+}
+
+async function openEditorFile() {
+    try {
+        const file = await window.lawpro.editorOpenFile();
+        if (!file) return;
+
+        editorState.currentFile = file.path;
+        editorState.currentType = file.type;
+        editorState.isModified = false;
+
+        elements.editorFileName.textContent = file.name;
+        elements.editorSaveFile.disabled = true;
+
+        if (file.type === 'markdown') {
+            switchEditorTab('markdown');
+            elements.mdCodeEditor.value = file.content;
+            updateMarkdownPreview();
+        } else {
+            switchEditorTab('html');
+            elements.htmlCodeEditor.value = file.content;
+            updateHtmlPreview();
+        }
+    } catch (err) {
+        alert('파일 열기 실패: ' + err.message);
+    }
+}
+
+async function saveEditorFile() {
+    if (!editorState.currentFile) {
+        // 새 파일로 저장
+        const content = editorState.currentType === 'markdown'
+            ? elements.mdCodeEditor.value
+            : elements.htmlCodeEditor.value;
+        const defaultName = editorState.currentType === 'markdown' ? 'document.md' : 'document.html';
+
+        try {
+            const result = await window.lawpro.editorSaveAs(content, defaultName);
+            if (result) {
+                editorState.currentFile = result.path;
+                elements.editorFileName.textContent = result.name;
+                editorState.isModified = false;
+                elements.editorSaveFile.disabled = true;
+                alert('저장 완료!');
+            }
+        } catch (err) {
+            alert('저장 실패: ' + err.message);
+        }
+    } else {
+        // 기존 파일 저장
+        const content = editorState.currentType === 'markdown'
+            ? elements.mdCodeEditor.value
+            : elements.htmlCodeEditor.value;
+
+        try {
+            await window.lawpro.editorSaveFile(editorState.currentFile, content);
+            editorState.isModified = false;
+            elements.editorSaveFile.disabled = true;
+            alert('저장 완료!');
+        } catch (err) {
+            alert('저장 실패: ' + err.message);
+        }
+    }
+}
+
+function switchEditorTab(tab) {
+    editorState.currentType = tab;
+
+    // 탭 스타일 업데이트
+    if (tab === 'html') {
+        elements.tabHtml.classList.add('border-primary-500', 'text-primary-400');
+        elements.tabHtml.classList.remove('border-transparent', 'text-gray-400');
+        elements.tabMarkdown.classList.remove('border-primary-500', 'text-primary-400');
+        elements.tabMarkdown.classList.add('border-transparent', 'text-gray-400');
+
+        elements.htmlEditorPanel.classList.remove('hidden');
+        elements.markdownEditorPanel.classList.add('hidden');
+    } else {
+        elements.tabMarkdown.classList.add('border-primary-500', 'text-primary-400');
+        elements.tabMarkdown.classList.remove('border-transparent', 'text-gray-400');
+        elements.tabHtml.classList.remove('border-primary-500', 'text-primary-400');
+        elements.tabHtml.classList.add('border-transparent', 'text-gray-400');
+
+        elements.markdownEditorPanel.classList.remove('hidden');
+        elements.htmlEditorPanel.classList.add('hidden');
+    }
+}
+
+function updateHtmlPreview() {
+    const html = elements.htmlCodeEditor.value;
+    const iframe = elements.htmlPreview;
+
+    // iframe에 HTML 렌더링
+    const doc = iframe.contentDocument || iframe.contentWindow.document;
+    doc.open();
+    doc.write(html);
+    doc.close();
+}
+
+function updateMarkdownPreview() {
+    const md = elements.mdCodeEditor.value;
+
+    // marked.js로 Markdown 파싱
+    if (typeof marked !== 'undefined') {
+        elements.mdPreview.innerHTML = marked.parse(md);
+    } else {
+        // marked가 로드되지 않은 경우 기본 텍스트로 표시
+        elements.mdPreview.textContent = md;
+    }
+}
+
+function formatHtml() {
+    const html = elements.htmlCodeEditor.value;
+
+    // 간단한 HTML 정리 (들여쓰기)
+    let formatted = '';
+    let indent = 0;
+    const lines = html.replace(/>\s*</g, '>\n<').split('\n');
+
+    lines.forEach(line => {
+        line = line.trim();
+        if (!line) return;
+
+        // 닫는 태그면 들여쓰기 감소
+        if (line.match(/^<\/\w/)) {
+            indent = Math.max(0, indent - 1);
+        }
+
+        formatted += '  '.repeat(indent) + line + '\n';
+
+        // 여는 태그 (self-closing 아닌 경우)
+        if (line.match(/^<\w[^>]*[^\/]>/) && !line.match(/^<(br|hr|img|input|meta|link)/i)) {
+            indent++;
+        }
+    });
+
+    elements.htmlCodeEditor.value = formatted.trim();
+    editorState.isModified = true;
+    elements.editorSaveFile.disabled = false;
+    updateHtmlPreview();
+}
+
+// ============================================================
 // 앱 시작
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
     init();
     setupCreditEventListeners();
+    setupEditorEventListeners();
 });
