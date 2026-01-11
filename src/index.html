@@ -117,6 +117,20 @@
                 </button>
             </nav>
 
+            <!-- 크레딧 표시 -->
+            <div class="p-4 border-t border-gray-700">
+                <div class="flex items-center justify-between text-sm mb-2">
+                    <span class="text-gray-400">이미지PDF 크레딧</span>
+                    <span id="creditBalance" class="text-primary-400 font-bold">0원</span>
+                </div>
+                <div id="creditAdminBadge" class="hidden mb-2">
+                    <span class="px-2 py-1 bg-purple-600/20 text-purple-400 rounded-full text-xs">관리자 (무제한)</span>
+                </div>
+                <button id="buyCreditsBtn" class="w-full py-2 bg-primary-600/20 hover:bg-primary-600/30 text-primary-400 rounded-lg text-xs transition-colors">
+                    크레딧 충전
+                </button>
+            </div>
+
             <!-- 상태 표시 -->
             <div class="p-4 border-t border-gray-700">
                 <div class="flex items-center justify-between text-sm">
@@ -420,6 +434,73 @@
                 </div>
             </section>
         </main>
+    </div>
+
+    <!-- 크레딧 충전 모달 -->
+    <div id="creditModal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden">
+        <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-lg border border-gray-700 shadow-2xl">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-xl font-bold">크레딧 충전</h2>
+                <button id="closeCreditModal" class="text-gray-400 hover:text-gray-200">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- 이메일 설정 -->
+            <div class="mb-6">
+                <label class="block text-sm text-gray-400 mb-2">사용자 이메일</label>
+                <div class="flex space-x-2">
+                    <input type="email" id="userEmailInput" placeholder="email@example.com"
+                        class="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm focus:border-primary-500 focus:outline-none">
+                    <button id="saveUserEmail" class="px-4 py-2 bg-primary-600 hover:bg-primary-500 rounded-lg text-sm transition-colors">
+                        저장
+                    </button>
+                </div>
+                <p class="text-xs text-gray-500 mt-1">* 관리자 이메일(kjccjk@hanmail.net)은 무제한 사용</p>
+            </div>
+
+            <!-- 현재 잔액 -->
+            <div class="bg-gray-900 rounded-lg p-4 mb-6">
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-400">현재 잔액</span>
+                    <span id="modalCreditBalance" class="text-2xl font-bold text-primary-400">0원</span>
+                </div>
+                <p class="text-xs text-gray-500 mt-1">이미지 PDF 변환: 1페이지당 55원 (부가세 포함)</p>
+            </div>
+
+            <!-- 패키지 선택 -->
+            <div class="space-y-3 mb-6">
+                <p class="text-sm text-gray-400 mb-2">크레딧 패키지 선택:</p>
+                <button class="credit-package w-full flex items-center justify-between p-4 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors" data-package="basic">
+                    <div>
+                        <p class="font-bold">11만원</p>
+                        <p class="text-xs text-gray-400">약 2,000페이지</p>
+                    </div>
+                    <span class="text-primary-400 font-bold">110,000원</span>
+                </button>
+                <button class="credit-package w-full flex items-center justify-between p-4 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors" data-package="standard">
+                    <div>
+                        <p class="font-bold">22만원</p>
+                        <p class="text-xs text-gray-400">약 4,000페이지</p>
+                    </div>
+                    <span class="text-primary-400 font-bold">220,000원</span>
+                </button>
+                <button class="credit-package w-full flex items-center justify-between p-4 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors" data-package="premium">
+                    <div>
+                        <p class="font-bold">55만원</p>
+                        <p class="text-xs text-gray-400">약 10,000페이지</p>
+                    </div>
+                    <span class="text-primary-400 font-bold">550,000원</span>
+                </button>
+            </div>
+
+            <p class="text-xs text-gray-500 text-center">
+                * 결제는 추후 토스페이먼츠/카카오페이 연동 예정<br>
+                * 현재 테스트 모드: 버튼 클릭 시 바로 충전
+            </p>
+        </div>
     </div>
 
     <script src="renderer.js"></script>

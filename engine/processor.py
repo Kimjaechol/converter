@@ -27,6 +27,13 @@ try:
 except ImportError:
     HAS_CLEANER = False
 
+# 크레딧 관리
+try:
+    from credit_manager import get_credit_manager
+    HAS_CREDIT = True
+except ImportError:
+    HAS_CREDIT = False
+
 
 class FileProcessor:
     """하이브리드 문서 처리기"""
@@ -37,17 +44,25 @@ class FileProcessor:
 
     def __init__(self, api_key: str, output_folder: str,
                  generate_clean_html: bool = True,
-                 generate_markdown: bool = True):
+                 generate_markdown: bool = True,
+                 check_credits: bool = True):
         self.api_key = api_key
         self.output_folder = output_folder
         self.generate_clean_html = generate_clean_html
         self.generate_markdown = generate_markdown
+        self.check_credits = check_credits
 
         # Cleaner 초기화
         if HAS_CLEANER and (generate_clean_html or generate_markdown):
             self.cleaner = ContentCleaner()
         else:
             self.cleaner = None
+
+        # Credit Manager 초기화
+        if HAS_CREDIT and check_credits:
+            self.credit_manager = get_credit_manager()
+        else:
+            self.credit_manager = None
 
     def process(self, file_path: str) -> Dict[str, Any]:
         """
@@ -724,6 +739,7 @@ class FileProcessor:
         이미지 PDF를 Upstage API로 변환
 
         대용량 PDF는 분할 처리
+        크레딧 시스템: 1페이지당 55원 (부가세 포함)
         """
         if not self.api_key:
             return "<p>Upstage API 키가 필요합니다. 이미지 PDF는 OCR이 필요합니다.</p>"
@@ -731,25 +747,41 @@ class FileProcessor:
         try:
             from PyPDF2 import PdfReader, PdfWriter
         except ImportError:
-            # 분할 없이 전체 업로드
+            # 분할 없이 전체 업로드 (페이지 수 확인 불가)
             return self._call_upstage_api(file_path)
 
         # PDF 페이지 수 확인
         reader = PdfReader(file_path)
         total_pages = len(reader.pages)
 
+        # 크레딧 확인 (크레딧 시스템이 있는 경우)
+        if self.credit_manager:
+            has_credits, required, msg = self.credit_manager.check_credits(total_pages)
+            if not has_credits:
+                raise ValueError(f"크레딧 부족: {total_pages}페이지 변환에 {required:,}원 필요. 현재 잔액을 확인해주세요.")
+
+        filename = os.path.basename(file_path)
+
         if total_pages <= self.MAX_PDF_PAGES_PER_REQUEST:
             # 작은 파일은 그대로 처리
-            return self._call_upstage_api(file_path)
+            result = self._call_upstage_api(file_path)
+
+            # 성공 시 크레딧 차감
+            if self.credit_manager and result and not result.startswith("<p>API"):
+                self.credit_manager.deduct_credits(total_pages, filename)
+
+            return result
 
         # 대용량 파일 분할 처리
         html_parts = []
         temp_dir = os.path.join(os.path.dirname(file_path), '.temp_split')
         os.makedirs(temp_dir, exist_ok=True)
+        pages_processed = 0
 
         try:
             for start_page in range(0, total_pages, self.MAX_PDF_PAGES_PER_REQUEST):
                 end_page = min(start_page + self.MAX_PDF_PAGES_PER_REQUEST, total_pages)
+                chunk_pages = end_page - start_page
 
                 # 부분 PDF 생성
                 writer = PdfWriter()
@@ -764,9 +796,14 @@ class FileProcessor:
                 part_html = self._call_upstage_api(temp_path)
                 html_parts.append(f'<!-- Pages {start_page + 1}-{end_page} -->')
                 html_parts.append(part_html)
+                pages_processed += chunk_pages
 
                 # 임시 파일 삭제
                 os.remove(temp_path)
+
+            # 성공 시 크레딧 차감 (전체 페이지)
+            if self.credit_manager and pages_processed > 0:
+                self.credit_manager.deduct_credits(pages_processed, filename)
 
         finally:
             # 임시 디렉토리 정리
