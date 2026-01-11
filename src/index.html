@@ -157,6 +157,43 @@
         .tour-step-dot.active {
             background: #6366f1;
         }
+
+        /* 수정 검토 아이템 */
+        .correction-item {
+            background: #1f2937;
+            border: 1px solid #374151;
+            border-radius: 8px;
+            padding: 16px;
+            transition: border-color 0.2s;
+        }
+        .correction-item:hover {
+            border-color: #4b5563;
+        }
+        .correction-item.confirmed {
+            border-color: #10b981;
+            background: rgba(16, 185, 129, 0.1);
+        }
+        .correction-item.rejected {
+            border-color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+        }
+        .correction-item.edited {
+            border-color: #f59e0b;
+            background: rgba(245, 158, 11, 0.1);
+        }
+        .correction-before {
+            background: rgba(239, 68, 68, 0.2);
+            color: #fca5a5;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-decoration: line-through;
+        }
+        .correction-after {
+            background: rgba(16, 185, 129, 0.2);
+            color: #6ee7b7;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-gray-100 font-sans min-h-screen">
@@ -461,6 +498,22 @@
                     <div class="flex-1 bg-gray-900 rounded-lg p-4 overflow-y-auto font-mono text-sm min-h-[150px]" id="reviewLogArea">
                         <p class="text-gray-500">검수 로그가 여기에 표시됩니다...</p>
                     </div>
+
+                    <!-- 검토 필요 수정 표시 -->
+                    <div id="uncertainCorrectionsSection" class="mt-4 hidden">
+                        <div class="flex items-center justify-between mb-2">
+                            <h4 class="font-bold text-red-400 flex items-center">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                                </svg>
+                                검토 필요 수정 (<span id="uncertainCount">0</span>건)
+                            </h4>
+                            <button id="openCorrectionReview" class="px-4 py-1 bg-red-600 hover:bg-red-500 rounded text-sm transition-colors">
+                                검토하기
+                            </button>
+                        </div>
+                        <p class="text-sm text-gray-400">AI가 확실하지 않은 수정 사항입니다. 검토 후 확정 또는 수정해주세요.</p>
+                    </div>
                 </div>
             </section>
 
@@ -749,6 +802,59 @@
             </div>
         </div>
         <div id="tourStepIndicator" class="tour-step-indicator"></div>
+    </div>
+
+    <!-- 수정 검토 모달 -->
+    <div id="correctionReviewModal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 hidden">
+        <div class="bg-gray-800 rounded-2xl w-full max-w-4xl max-h-[90vh] border border-gray-700 shadow-2xl flex flex-col">
+            <!-- 모달 헤더 -->
+            <div class="flex items-center justify-between p-6 border-b border-gray-700">
+                <div>
+                    <h2 class="text-xl font-bold text-red-400 flex items-center">
+                        <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                        검토 필요 수정 사항
+                    </h2>
+                    <p class="text-sm text-gray-400 mt-1">AI가 확실하지 않은 수정입니다. 각 항목을 검토해주세요.</p>
+                </div>
+                <button id="closeCorrectionModal" class="text-gray-400 hover:text-gray-200">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- 파일 선택 -->
+            <div class="px-6 pt-4 pb-2 border-b border-gray-700">
+                <label class="text-sm text-gray-400 mr-2">파일:</label>
+                <select id="correctionFileSelect" class="px-3 py-1 bg-gray-700 border border-gray-600 rounded text-sm focus:border-primary-500 focus:outline-none">
+                    <option value="">파일을 선택하세요</option>
+                </select>
+            </div>
+
+            <!-- 수정 목록 -->
+            <div class="flex-1 overflow-y-auto p-6">
+                <div id="correctionsList" class="space-y-4">
+                    <p class="text-gray-500 text-center py-8">검토할 수정 사항이 없습니다.</p>
+                </div>
+            </div>
+
+            <!-- 모달 푸터 -->
+            <div class="p-6 border-t border-gray-700 flex items-center justify-between">
+                <div class="text-sm text-gray-400">
+                    검토 완료: <span id="reviewedCount">0</span> / <span id="totalCorrections">0</span>
+                </div>
+                <div class="flex space-x-3">
+                    <button id="confirmAllCorrections" class="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg text-sm font-medium transition-colors">
+                        모두 확정
+                    </button>
+                    <button id="saveCorrectionReview" class="px-4 py-2 bg-primary-600 hover:bg-primary-500 rounded-lg text-sm font-medium transition-colors">
+                        저장 후 닫기
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- 환영 모달 (첫 방문 시) -->

@@ -77,7 +77,23 @@ def load_system_prompt() -> str:
 {chr(10).join(common_text)}
 
 ## 출력 형식
-수정된 HTML을 그대로 출력합니다. 마지막에 수정 내역을 간단히 요약합니다.
+다음 구조로 출력하세요:
+
+===HTML_START===
+(수정된 HTML 내용 - 확실/불확실 모든 수정 적용)
+===HTML_END===
+
+===확정_수정_START===
+| 위치 | 원본 | 수정 | 이유 |
+|------|------|------|------|
+(확실한 수정만 나열)
+===확정_수정_END===
+
+===검토필요_START===
+| 위치 | 원본 | 수정 | 이유 |
+|------|------|------|------|
+(불확실한 수정 - 사용자 검토 필요)
+===검토필요_END===
 """
 
     # 기본 프롬프트 (규칙 파일이 없을 때)
@@ -128,8 +144,90 @@ OCR로 변환된 HTML 문서에서 오류를 찾아 수정합니다.
 
 ## 출력 형식
 
-수정된 HTML을 그대로 출력합니다. 추가 설명이나 마크다운 코드 블록 없이 순수 HTML만 반환하세요.
+다음 구조로 출력하세요:
+
+===HTML_START===
+(수정된 HTML 내용 - 확실/불확실 모든 수정 적용)
+===HTML_END===
+
+===확정_수정_START===
+| 위치 | 원본 | 수정 | 이유 |
+|------|------|------|------|
+(확실한 수정만 나열)
+===확정_수정_END===
+
+===검토필요_START===
+| 위치 | 원본 | 수정 | 이유 |
+|------|------|------|------|
+(불확실한 수정 - 사용자 검토 필요)
+===검토필요_END===
 """
+
+
+def parse_review_output(output: str) -> dict:
+    """
+    AI 검수 결과를 파싱하여 구조화된 데이터로 변환
+
+    Returns:
+        {
+            'html': 수정된 HTML,
+            'confirmed_corrections': 확정 수정 목록,
+            'uncertain_corrections': 검토 필요 수정 목록
+        }
+    """
+    result = {
+        'html': '',
+        'confirmed_corrections': [],
+        'uncertain_corrections': []
+    }
+
+    # HTML 추출
+    html_match = re.search(r'===HTML_START===\s*(.*?)\s*===HTML_END===', output, re.DOTALL)
+    if html_match:
+        result['html'] = html_match.group(1).strip()
+    else:
+        # 구조화된 출력이 없으면 전체를 HTML로 간주
+        result['html'] = output.strip()
+
+    # 확정 수정 추출
+    confirmed_match = re.search(r'===확정_수정_START===\s*(.*?)\s*===확정_수정_END===', output, re.DOTALL)
+    if confirmed_match:
+        result['confirmed_corrections'] = parse_correction_table(confirmed_match.group(1))
+
+    # 검토 필요 수정 추출
+    uncertain_match = re.search(r'===검토필요_START===\s*(.*?)\s*===검토필요_END===', output, re.DOTALL)
+    if uncertain_match:
+        result['uncertain_corrections'] = parse_correction_table(uncertain_match.group(1))
+
+    return result
+
+
+def parse_correction_table(table_text: str) -> list:
+    """
+    마크다운 테이블을 파싱하여 수정 목록으로 변환
+
+    Returns:
+        [{'location': str, 'original': str, 'corrected': str, 'reason': str}, ...]
+    """
+    corrections = []
+    lines = table_text.strip().split('\n')
+
+    for line in lines:
+        # 테이블 구분선이나 헤더 스킵
+        if not line.strip() or line.startswith('|--') or '위치' in line:
+            continue
+
+        # 테이블 행 파싱
+        parts = [p.strip() for p in line.split('|') if p.strip()]
+        if len(parts) >= 4:
+            corrections.append({
+                'location': parts[0],
+                'original': parts[1],
+                'corrected': parts[2],
+                'reason': parts[3]
+            })
+
+    return corrections
 
 
 # ============================================================
@@ -172,7 +270,7 @@ class GeminiReviewAgent:
             ]
         )
 
-    def review_document(self, content: str) -> str:
+    def review_document(self, content: str) -> dict:
         """
         단일 문서 검수
 
@@ -180,7 +278,11 @@ class GeminiReviewAgent:
             content: HTML 문서 내용
 
         Returns:
-            수정된 HTML
+            {
+                'html': 수정된 HTML,
+                'confirmed_corrections': 확정 수정 목록,
+                'uncertain_corrections': 검토 필요 수정 목록
+            }
         """
         # 문서가 너무 길면 청크로 분할
         if len(content) > self.CHUNK_SIZE:
@@ -188,19 +290,27 @@ class GeminiReviewAgent:
 
         return self._call_gemini(content)
 
-    def _review_chunked(self, content: str) -> str:
+    def _review_chunked(self, content: str) -> dict:
         """대용량 문서 청크 처리"""
         # HTML을 논리적 단위로 분할 (주요 태그 기준)
         chunks = self._split_html(content)
-        reviewed_chunks = []
+        reviewed_html_parts = []
+        all_confirmed = []
+        all_uncertain = []
 
         for i, chunk in enumerate(chunks):
             self._emit_progress(f"청크 {i+1}/{len(chunks)} 처리 중...")
-            reviewed_chunk = self._call_gemini(chunk)
-            reviewed_chunks.append(reviewed_chunk)
+            result = self._call_gemini(chunk)
+            reviewed_html_parts.append(result.get('html', chunk))
+            all_confirmed.extend(result.get('confirmed_corrections', []))
+            all_uncertain.extend(result.get('uncertain_corrections', []))
             time.sleep(0.5)  # Rate limit 방지
 
-        return ''.join(reviewed_chunks)
+        return {
+            'html': ''.join(reviewed_html_parts),
+            'confirmed_corrections': all_confirmed,
+            'uncertain_corrections': all_uncertain
+        }
 
     def _split_html(self, content: str) -> List[str]:
         """HTML을 논리적 청크로 분할"""
@@ -225,8 +335,18 @@ class GeminiReviewAgent:
 
         return chunks if chunks else [content]
 
-    def _call_gemini(self, content: str) -> str:
-        """Gemini API 호출"""
+    def _call_gemini(self, content: str) -> dict:
+        """
+        Gemini API 호출
+
+        Returns:
+            {
+                'html': 수정된 HTML,
+                'confirmed_corrections': 확정 수정 목록,
+                'uncertain_corrections': 검토 필요 수정 목록,
+                'raw_response': 원본 응답
+            }
+        """
         try:
             # 검수 규칙에서 시스템 프롬프트 로드
             system_prompt = load_system_prompt()
@@ -241,26 +361,47 @@ class GeminiReviewAgent:
 
 ---
 
-위 문서에서 OCR 오류를 찾아 수정하고, 수정된 HTML을 반환하세요.
+위 문서에서 OCR 오류를 찾아 수정하세요.
 HTML 태그는 그대로 유지하고 텍스트 오류만 수정합니다.
-마지막에 수정 내역을 간단히 요약해주세요.
+
+중요:
+- HTML 본문에는 확실한 수정과 불확실한 수정을 모두 적용하세요
+- 확정 수정표에는 확실한 수정만 기재하세요
+- 검토필요 수정표에는 불확실한 수정(고유명사, 맥락상 애매한 경우 등)을 기재하세요
+
+반드시 위의 출력 형식을 따라주세요.
 """
 
             response = self.model.generate_content(prompt)
 
             if response.text:
                 # 마크다운 코드 블록 제거
-                result = response.text
-                result = re.sub(r'^```html\s*', '', result)
-                result = re.sub(r'^```\s*', '', result)
-                result = re.sub(r'\s*```$', '', result)
-                return result.strip()
+                raw_result = response.text
+                raw_result = re.sub(r'^```html\s*', '', raw_result)
+                raw_result = re.sub(r'^```\s*', '', raw_result)
+                raw_result = re.sub(r'\s*```$', '', raw_result)
 
-            return content  # 실패 시 원본 반환
+                # 구조화된 출력 파싱
+                parsed = parse_review_output(raw_result)
+                parsed['raw_response'] = raw_result
+                return parsed
+
+            return {
+                'html': content,
+                'confirmed_corrections': [],
+                'uncertain_corrections': [],
+                'raw_response': ''
+            }
 
         except Exception as e:
             self._emit_error(f"Gemini API 오류: {str(e)}")
-            return content
+            return {
+                'html': content,
+                'confirmed_corrections': [],
+                'uncertain_corrections': [],
+                'raw_response': '',
+                'error': str(e)
+            }
 
     def _emit_progress(self, msg: str):
         """진행 상황 출력"""
@@ -326,6 +467,7 @@ def batch_review(folder_path: str, api_key: str, model_name: str = "flash-2.0"):
     for file_path in html_files:
         filename = os.path.basename(file_path)
         output_path = os.path.join(output_dir, filename)
+        corrections_path = os.path.join(output_dir, filename.replace('.html', '_corrections.json'))
 
         try:
             # 이미 검수된 파일 스킵
@@ -345,18 +487,38 @@ def batch_review(folder_path: str, api_key: str, model_name: str = "flash-2.0"):
 
             # 검수 실행
             start_time = time.time()
-            reviewed_content = agent.review_document(content)
+            result = agent.review_document(content)
             elapsed = round(time.time() - start_time, 2)
 
-            # 저장
+            # HTML 저장
             with open(output_path, 'w', encoding='utf-8') as f:
-                f.write(reviewed_content)
+                f.write(result.get('html', content))
+
+            # 수정 내역 저장 (JSON)
+            corrections_data = {
+                'file': filename,
+                'reviewed_at': datetime.now().isoformat(),
+                'confirmed_corrections': result.get('confirmed_corrections', []),
+                'uncertain_corrections': result.get('uncertain_corrections', []),
+                'stats': {
+                    'confirmed_count': len(result.get('confirmed_corrections', [])),
+                    'uncertain_count': len(result.get('uncertain_corrections', []))
+                }
+            }
+            with open(corrections_path, 'w', encoding='utf-8') as f:
+                json.dump(corrections_data, f, ensure_ascii=False, indent=2)
+
+            # 검토 필요 항목 수
+            uncertain_count = len(result.get('uncertain_corrections', []))
 
             print(json.dumps({
                 "type": "progress",
                 "status": "success",
                 "file": filename,
-                "time": elapsed
+                "time": elapsed,
+                "confirmed_count": len(result.get('confirmed_corrections', [])),
+                "uncertain_count": uncertain_count,
+                "needs_review": uncertain_count > 0
             }), flush=True)
 
             stats["success"] += 1
@@ -386,8 +548,17 @@ def batch_review(folder_path: str, api_key: str, model_name: str = "flash-2.0"):
 # ============================================================
 # 단일 파일 처리
 # ============================================================
-def review_single_file(file_path: str, api_key: str, model_name: str = "flash-2.0") -> str:
-    """단일 파일 검수"""
+def review_single_file(file_path: str, api_key: str, model_name: str = "flash-2.0") -> dict:
+    """
+    단일 파일 검수
+
+    Returns:
+        {
+            'html': 수정된 HTML,
+            'confirmed_corrections': 확정 수정 목록,
+            'uncertain_corrections': 검토 필요 수정 목록
+        }
+    """
     agent = GeminiReviewAgent(api_key=api_key, model_name=model_name)
 
     with open(file_path, 'r', encoding='utf-8') as f:

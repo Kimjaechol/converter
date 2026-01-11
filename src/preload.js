@@ -122,6 +122,13 @@ contextBridge.exposeInMainWorld('lawpro', {
         return () => ipcRenderer.removeListener('folder-selected', handler);
     },
 
+    // JSON 파일 읽기/쓰기 (수정 검토용)
+    readJsonFile: (filePath) =>
+        ipcRenderer.invoke('read-json-file', filePath),
+
+    writeJsonFile: (filePath, data) =>
+        ipcRenderer.invoke('write-json-file', filePath, data),
+
     // ========================================
     // 시스템 상태
     // ========================================

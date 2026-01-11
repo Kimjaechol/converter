@@ -589,6 +589,34 @@ ipcMain.handle('get-last-folder', async () => {
     return store.get('lastFolder', '');
 });
 
+// JSON 파일 읽기 (수정 검토용)
+ipcMain.handle('read-json-file', async (event, filePath) => {
+    try {
+        if (!fs.existsSync(filePath)) {
+            return null;
+        }
+        const content = fs.readFileSync(filePath, 'utf-8');
+        return JSON.parse(content);
+    } catch (err) {
+        console.error('JSON 읽기 실패:', err);
+        return null;
+    }
+});
+
+// JSON 파일 쓰기 (수정 검토용)
+ipcMain.handle('write-json-file', async (event, filePath, data) => {
+    try {
+        const dir = path.dirname(filePath);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+        return { success: true };
+    } catch (err) {
+        throw new Error(`JSON 저장 실패: ${err.message}`);
+    }
+});
+
 // Python 상태 확인
 ipcMain.handle('check-python', async () => {
     const pythonCmd = getPythonCommand();
