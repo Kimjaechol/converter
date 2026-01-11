@@ -69,6 +69,94 @@
         .log-error { color: #ef4444; }
         .log-warning { color: #f59e0b; }
         .log-info { color: #3b82f6; }
+
+        /* 가이드 투어 */
+        .tour-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.75);
+            z-index: 1000;
+            pointer-events: auto;
+        }
+        .tour-highlight {
+            position: relative;
+            z-index: 1001;
+            box-shadow: 0 0 0 4px #6366f1, 0 0 20px rgba(99, 102, 241, 0.5);
+            border-radius: 8px;
+            animation: tour-pulse 2s ease-in-out infinite;
+        }
+        @keyframes tour-pulse {
+            0%, 100% { box-shadow: 0 0 0 4px #6366f1, 0 0 20px rgba(99, 102, 241, 0.5); }
+            50% { box-shadow: 0 0 0 6px #818cf8, 0 0 30px rgba(99, 102, 241, 0.7); }
+        }
+        .tour-tooltip {
+            position: fixed;
+            z-index: 1002;
+            background: #1f2937;
+            border: 2px solid #6366f1;
+            border-radius: 12px;
+            padding: 20px;
+            max-width: 320px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+            animation: tour-fade-in 0.3s ease-out;
+        }
+        @keyframes tour-fade-in {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .tour-tooltip::before {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            background: #1f2937;
+            border: 2px solid #6366f1;
+            transform: rotate(45deg);
+        }
+        .tour-tooltip.arrow-top::before {
+            top: -10px;
+            left: 50%;
+            margin-left: -8px;
+            border-right: none;
+            border-bottom: none;
+        }
+        .tour-tooltip.arrow-bottom::before {
+            bottom: -10px;
+            left: 50%;
+            margin-left: -8px;
+            border-left: none;
+            border-top: none;
+        }
+        .tour-tooltip.arrow-left::before {
+            left: -10px;
+            top: 50%;
+            margin-top: -8px;
+            border-right: none;
+            border-top: none;
+        }
+        .tour-tooltip.arrow-right::before {
+            right: -10px;
+            top: 50%;
+            margin-top: -8px;
+            border-left: none;
+            border-bottom: none;
+        }
+        .tour-step-indicator {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+            margin-top: 16px;
+        }
+        .tour-step-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4b5563;
+            transition: background 0.3s;
+        }
+        .tour-step-dot.active {
+            background: #6366f1;
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-gray-100 font-sans min-h-screen">
@@ -645,6 +733,42 @@
                 * 결제는 추후 토스페이먼츠/카카오페이 연동 예정<br>
                 * 현재 테스트 모드: 버튼 클릭 시 바로 충전
             </p>
+        </div>
+    </div>
+
+    <!-- 가이드 투어 오버레이 -->
+    <div id="tourOverlay" class="tour-overlay hidden"></div>
+    <div id="tourTooltip" class="tour-tooltip hidden">
+        <h3 id="tourTitle" class="text-lg font-bold text-primary-400 mb-2"></h3>
+        <p id="tourDescription" class="text-sm text-gray-300 mb-4"></p>
+        <div class="flex items-center justify-between">
+            <button id="tourSkip" class="text-sm text-gray-500 hover:text-gray-300">건너뛰기</button>
+            <div class="flex items-center space-x-2">
+                <button id="tourPrev" class="px-3 py-1 text-sm bg-gray-700 hover:bg-gray-600 rounded hidden">이전</button>
+                <button id="tourNext" class="px-4 py-1 text-sm bg-primary-600 hover:bg-primary-500 rounded font-medium">다음</button>
+            </div>
+        </div>
+        <div id="tourStepIndicator" class="tour-step-indicator"></div>
+    </div>
+
+    <!-- 환영 모달 (첫 방문 시) -->
+    <div id="welcomeModal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 hidden">
+        <div class="bg-gray-800 rounded-2xl p-8 w-full max-w-md border border-gray-700 shadow-2xl text-center">
+            <div class="w-16 h-16 bg-primary-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path>
+                </svg>
+            </div>
+            <h2 class="text-2xl font-bold mb-2">LawPro Fast Converter에 오신 것을 환영합니다!</h2>
+            <p class="text-gray-400 mb-6">HWPX, DOCX, PDF 등 다양한 문서를 HTML로 빠르게 변환할 수 있습니다.</p>
+            <div class="space-y-3">
+                <button id="startTour" class="w-full py-3 bg-primary-600 hover:bg-primary-500 rounded-lg font-medium transition-colors">
+                    사용법 둘러보기 (권장)
+                </button>
+                <button id="skipTour" class="w-full py-3 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors">
+                    바로 시작하기
+                </button>
+            </div>
         </div>
     </div>
 
