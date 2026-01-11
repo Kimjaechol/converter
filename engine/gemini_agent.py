@@ -35,6 +35,13 @@ try:
 except ImportError:
     HAS_RULES = False
 
+# 오류 학습 시스템 로드
+try:
+    from error_learning import PatternStore
+    HAS_ERROR_LEARNING = True
+except ImportError:
+    HAS_ERROR_LEARNING = False
+
 
 def load_system_prompt() -> str:
     """검수 규칙에서 시스템 프롬프트 생성"""
@@ -228,6 +235,32 @@ def parse_correction_table(table_text: str) -> list:
             })
 
     return corrections
+
+
+def track_pattern_usage(corrections: list, source: str = None):
+    """
+    AI가 수정한 내용과 학습된 패턴을 매칭하여 사용 횟수 기록
+
+    Args:
+        corrections: AI 수정 목록 [{'original': str, 'corrected': str, ...}, ...]
+        source: 오류 출처 ('image_pdf' 또는 'digital_doc')
+    """
+    if not HAS_ERROR_LEARNING:
+        return
+
+    try:
+        store = PatternStore()
+
+        for corr in corrections:
+            original = corr.get('original', '')
+            corrected = corr.get('corrected', '')
+
+            if original and corrected:
+                store.mark_patterns_used_by_content(original, corrected, source)
+
+    except Exception as e:
+        # 패턴 추적 실패는 무시 (검수 본연의 기능에 영향 없음)
+        pass
 
 
 # ============================================================
@@ -495,18 +528,26 @@ def batch_review(folder_path: str, api_key: str, model_name: str = "flash-2.0"):
                 f.write(result.get('html', content))
 
             # 수정 내역 저장 (JSON)
+            confirmed = result.get('confirmed_corrections', [])
+            uncertain = result.get('uncertain_corrections', [])
+
             corrections_data = {
                 'file': filename,
                 'reviewed_at': datetime.now().isoformat(),
-                'confirmed_corrections': result.get('confirmed_corrections', []),
-                'uncertain_corrections': result.get('uncertain_corrections', []),
+                'confirmed_corrections': confirmed,
+                'uncertain_corrections': uncertain,
                 'stats': {
-                    'confirmed_count': len(result.get('confirmed_corrections', [])),
-                    'uncertain_count': len(result.get('uncertain_corrections', []))
+                    'confirmed_count': len(confirmed),
+                    'uncertain_count': len(uncertain)
                 }
             }
             with open(corrections_path, 'w', encoding='utf-8') as f:
                 json.dump(corrections_data, f, ensure_ascii=False, indent=2)
+
+            # 학습된 패턴 사용 기록 (확정 수정만)
+            all_corrections = confirmed + uncertain
+            if all_corrections:
+                track_pattern_usage(all_corrections)
 
             # 검토 필요 항목 수
             uncertain_count = len(result.get('uncertain_corrections', []))
