@@ -28,11 +28,63 @@ except ImportError:
     }), flush=True)
     sys.exit(1)
 
+# 검수 규칙 로드
+try:
+    from rules_converter import get_review_rules, generate_review_prompt
+    HAS_RULES = True
+except ImportError:
+    HAS_RULES = False
 
-# ============================================================
-# 시스템 프롬프트
-# ============================================================
-SYSTEM_PROMPT = """당신은 LawPro 법률 문서 OCR 검수 전문가입니다.
+
+def load_system_prompt() -> str:
+    """검수 규칙에서 시스템 프롬프트 생성"""
+    if HAS_RULES:
+        rules = get_review_rules()
+        system = rules.get('시스템_지시', {})
+        role = system.get('역할', '당신은 법률 문서 OCR 검수 전문가입니다.')
+        principles = system.get('원칙', [])
+
+        # 오류 카테고리 추출
+        categories = rules.get('오류_카테고리', {})
+        rules_text = []
+        for cat_name, cat_data in categories.items():
+            if isinstance(cat_data, dict):
+                rules_text.append(f"\n### {cat_name}")
+                rules_text.append(f"**설명**: {cat_data.get('설명', '')}")
+                rules_text.append(f"**중요도**: {cat_data.get('중요도', '중간')}")
+                for rule in cat_data.get('규칙', []):
+                    if isinstance(rule, dict):
+                        rules_text.append(f"- {rule.get('유형', '')}: {', '.join(rule.get('오류_예시', [])[:5])}")
+
+        # 자주 틀리는 단어
+        common = rules.get('자주_틀리는_단어', {})
+        common_text = []
+        for category, words in common.items():
+            if isinstance(words, dict):
+                for correct, errors in list(words.items())[:10]:
+                    if isinstance(errors, list):
+                        common_text.append(f"- {correct}: {', '.join(errors[:3])}")
+
+        return f"""{role}
+
+## 역할 원칙
+{chr(10).join(f'- {p}' for p in principles)}
+
+## 검수 항목
+{chr(10).join(rules_text)}
+
+## 자주 틀리는 단어 (오류 → 정답)
+{chr(10).join(common_text)}
+
+## 출력 형식
+수정된 HTML을 그대로 출력합니다. 마지막에 수정 내역을 간단히 요약합니다.
+"""
+
+    # 기본 프롬프트 (규칙 파일이 없을 때)
+    return SYSTEM_PROMPT_DEFAULT
+
+
+SYSTEM_PROMPT_DEFAULT = """당신은 LawPro 법률 문서 OCR 검수 전문가입니다.
 
 ## 임무
 OCR로 변환된 HTML 문서에서 오류를 찾아 수정합니다.
@@ -176,7 +228,10 @@ class GeminiReviewAgent:
     def _call_gemini(self, content: str) -> str:
         """Gemini API 호출"""
         try:
-            prompt = f"""{SYSTEM_PROMPT}
+            # 검수 규칙에서 시스템 프롬프트 로드
+            system_prompt = load_system_prompt()
+
+            prompt = f"""{system_prompt}
 
 ---
 
@@ -188,6 +243,7 @@ class GeminiReviewAgent:
 
 위 문서에서 OCR 오류를 찾아 수정하고, 수정된 HTML을 반환하세요.
 HTML 태그는 그대로 유지하고 텍스트 오류만 수정합니다.
+마지막에 수정 내역을 간단히 요약해주세요.
 """
 
             response = self.model.generate_content(prompt)
