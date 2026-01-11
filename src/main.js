@@ -589,6 +589,141 @@ ipcMain.handle('get-last-folder', async () => {
     return store.get('lastFolder', '');
 });
 
+// JSON 파일 읽기 (수정 검토용)
+ipcMain.handle('read-json-file', async (event, filePath) => {
+    try {
+        if (!fs.existsSync(filePath)) {
+            return null;
+        }
+        const content = fs.readFileSync(filePath, 'utf-8');
+        return JSON.parse(content);
+    } catch (err) {
+        console.error('JSON 읽기 실패:', err);
+        return null;
+    }
+});
+
+// JSON 파일 쓰기 (수정 검토용)
+ipcMain.handle('write-json-file', async (event, filePath, data) => {
+    try {
+        const dir = path.dirname(filePath);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+        return { success: true };
+    } catch (err) {
+        throw new Error(`JSON 저장 실패: ${err.message}`);
+    }
+});
+
+// ============================================================
+// IPC 핸들러: 오류 학습 시스템
+// ============================================================
+// 수정 내역 수집
+ipcMain.handle('collect-corrections', async (event, corrections) => {
+    return new Promise((resolve, reject) => {
+        const pythonCmd = getPythonCommand();
+        if (!pythonCmd) {
+            resolve({ success: false, error: 'Python not found' });
+            return;
+        }
+
+        const scriptPath = path.join(enginePath, 'error_learning.py');
+
+        // 각 수정 내역을 Python 스크립트로 전달
+        const collectProcess = spawn(pythonCmd, [
+            scriptPath,
+            'collect-batch'
+        ], {
+            cwd: enginePath,
+            env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+        });
+
+        // stdin으로 데이터 전달
+        collectProcess.stdin.write(JSON.stringify(corrections));
+        collectProcess.stdin.end();
+
+        let output = '';
+        collectProcess.stdout.on('data', (data) => { output += data.toString(); });
+        collectProcess.stderr.on('data', (data) => { console.error('collect error:', data.toString()); });
+
+        collectProcess.on('close', (code) => {
+            resolve({ success: code === 0, count: corrections.length });
+        });
+    });
+});
+
+// 학습 데이터 통계 조회
+ipcMain.handle('get-learning-stats', async () => {
+    return new Promise((resolve, reject) => {
+        const pythonCmd = getPythonCommand();
+        if (!pythonCmd) {
+            resolve({ total: 0, by_source: {} });
+            return;
+        }
+
+        const scriptPath = path.join(enginePath, 'error_learning.py');
+        const statsProcess = spawn(pythonCmd, [scriptPath, 'stats'], {
+            cwd: enginePath,
+            env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+        });
+
+        let output = '';
+        statsProcess.stdout.on('data', (data) => { output += data.toString(); });
+
+        statsProcess.on('close', (code) => {
+            try {
+                const result = JSON.parse(output);
+                resolve(result.data || { total: 0 });
+            } catch (e) {
+                resolve({ total: 0, by_source: {} });
+            }
+        });
+    });
+});
+
+// 서버와 동기화
+ipcMain.handle('sync-learning-data', async () => {
+    return new Promise((resolve, reject) => {
+        const pythonCmd = getPythonCommand();
+        if (!pythonCmd) {
+            resolve({ success: false, error: 'Python not found' });
+            return;
+        }
+
+        const scriptPath = path.join(enginePath, 'error_learning.py');
+
+        // 먼저 서버로 업로드
+        const syncProcess = spawn(pythonCmd, [scriptPath, 'sync'], {
+            cwd: enginePath,
+            env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+        });
+
+        let output = '';
+        syncProcess.stdout.on('data', (data) => { output += data.toString(); });
+
+        syncProcess.on('close', (code) => {
+            // 그 다음 서버에서 다운로드
+            const fetchProcess = spawn(pythonCmd, [scriptPath, 'fetch'], {
+                cwd: enginePath,
+                env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+            });
+
+            let fetchOutput = '';
+            fetchProcess.stdout.on('data', (data) => { fetchOutput += data.toString(); });
+
+            fetchProcess.on('close', (fetchCode) => {
+                resolve({
+                    success: true,
+                    sync_result: output,
+                    fetch_result: fetchOutput
+                });
+            });
+        });
+    });
+});
+
 // Python 상태 확인
 ipcMain.handle('check-python', async () => {
     const pythonCmd = getPythonCommand();

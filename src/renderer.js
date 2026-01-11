@@ -26,6 +26,15 @@ const editorState = {
     selectedCell: null      // 현재 선택된 표 셀
 };
 
+// 수정 검토 상태
+const correctionState = {
+    files: [],              // 검토 필요 파일 목록
+    currentFile: null,      // 현재 선택된 파일
+    corrections: [],        // 현재 파일의 수정 목록
+    decisions: {},          // 각 수정에 대한 결정 {index: 'confirmed'|'rejected'|'edited', editedValue?: string}
+    totalUncertain: 0       // 전체 검토 필요 수
+};
+
 // ============================================================
 // DOM 요소
 // ============================================================
@@ -122,6 +131,19 @@ const elements = {
     htmlRefresh: document.getElementById('htmlRefresh'),
     mdCodeEditor: document.getElementById('mdCodeEditor'),
     mdPreview: document.getElementById('mdPreview'),
+
+    // 수정 검토 관련
+    uncertainCorrectionsSection: document.getElementById('uncertainCorrectionsSection'),
+    uncertainCount: document.getElementById('uncertainCount'),
+    openCorrectionReview: document.getElementById('openCorrectionReview'),
+    correctionReviewModal: document.getElementById('correctionReviewModal'),
+    closeCorrectionModal: document.getElementById('closeCorrectionModal'),
+    correctionFileSelect: document.getElementById('correctionFileSelect'),
+    correctionsList: document.getElementById('correctionsList'),
+    reviewedCount: document.getElementById('reviewedCount'),
+    totalCorrections: document.getElementById('totalCorrections'),
+    confirmAllCorrections: document.getElementById('confirmAllCorrections'),
+    saveCorrectionReview: document.getElementById('saveCorrectionReview'),
 
     // WYSIWYG 에디터 요소
     visualEditor: document.getElementById('visualEditor'),
@@ -675,11 +697,26 @@ function handleReviewLog(data) {
     switch (data.type) {
         case 'init':
             addReviewLog('info', `총 ${data.total}개 파일 발견 (모델: ${data.model})`);
+            // 검토 상태 초기화
+            correctionState.files = [];
+            correctionState.totalUncertain = 0;
             break;
 
         case 'progress':
             if (data.status === 'success') {
-                addReviewLog('success', `${data.file} (${data.time}초)`);
+                let msg = `${data.file} (${data.time}초)`;
+                if (data.confirmed_count) {
+                    msg += ` - 확정: ${data.confirmed_count}건`;
+                }
+                if (data.uncertain_count) {
+                    msg += `, 검토필요: ${data.uncertain_count}건`;
+                    correctionState.totalUncertain += data.uncertain_count;
+                    correctionState.files.push({
+                        file: data.file,
+                        uncertain_count: data.uncertain_count
+                    });
+                }
+                addReviewLog(data.needs_review ? 'warning' : 'success', msg);
             } else if (data.status === 'skipped') {
                 addReviewLog('warning', `${data.file}: ${data.msg}`);
             } else {
@@ -689,6 +726,10 @@ function handleReviewLog(data) {
 
         case 'complete':
             addReviewLog('info', `완료: 성공 ${data.success}, 실패 ${data.fail}, 스킵 ${data.skipped}`);
+            // 검토 필요한 수정이 있으면 섹션 표시
+            if (correctionState.totalUncertain > 0) {
+                showUncertainCorrectionsSection();
+            }
             break;
 
         case 'error':
@@ -1554,6 +1595,292 @@ function setupTourEventListeners() {
 }
 
 // ============================================================
+// 수정 검토 기능
+// ============================================================
+function showUncertainCorrectionsSection() {
+    if (elements.uncertainCorrectionsSection) {
+        elements.uncertainCorrectionsSection.classList.remove('hidden');
+    }
+    if (elements.uncertainCount) {
+        elements.uncertainCount.textContent = correctionState.totalUncertain;
+    }
+}
+
+function hideUncertainCorrectionsSection() {
+    if (elements.uncertainCorrectionsSection) {
+        elements.uncertainCorrectionsSection.classList.add('hidden');
+    }
+}
+
+function openCorrectionReviewModal() {
+    if (!elements.correctionReviewModal) return;
+
+    // 파일 선택 드롭다운 업데이트
+    updateCorrectionFileSelect();
+
+    // 모달 표시
+    elements.correctionReviewModal.classList.remove('hidden');
+}
+
+function closeCorrectionReviewModal() {
+    if (elements.correctionReviewModal) {
+        elements.correctionReviewModal.classList.add('hidden');
+    }
+}
+
+function updateCorrectionFileSelect() {
+    if (!elements.correctionFileSelect) return;
+
+    elements.correctionFileSelect.innerHTML = '<option value="">파일을 선택하세요</option>';
+
+    correctionState.files.forEach((fileInfo, index) => {
+        const option = document.createElement('option');
+        option.value = fileInfo.file;
+        option.textContent = `${fileInfo.file} (${fileInfo.uncertain_count}건)`;
+        elements.correctionFileSelect.appendChild(option);
+    });
+}
+
+async function loadCorrectionsForFile(filename) {
+    if (!filename) {
+        correctionState.currentFile = null;
+        correctionState.corrections = [];
+        correctionState.decisions = {};
+        renderCorrectionsList();
+        return;
+    }
+
+    try {
+        // 수정 파일 로드 (IPC 통해)
+        const folderPath = elements.reviewFolderPath.value;
+        const correctionsPath = `${folderPath}/Final_Reviewed_Gemini/${filename.replace('.html', '_corrections.json')}`;
+
+        const result = await window.lawpro.readJsonFile(correctionsPath);
+
+        if (result && result.uncertain_corrections) {
+            correctionState.currentFile = filename;
+            correctionState.corrections = result.uncertain_corrections;
+            correctionState.decisions = {};
+            renderCorrectionsList();
+        }
+    } catch (error) {
+        console.error('수정 파일 로드 실패:', error);
+        correctionState.corrections = [];
+        renderCorrectionsList();
+    }
+}
+
+function renderCorrectionsList() {
+    if (!elements.correctionsList) return;
+
+    if (correctionState.corrections.length === 0) {
+        elements.correctionsList.innerHTML = '<p class="text-gray-500 text-center py-8">검토할 수정 사항이 없습니다.</p>';
+        updateReviewProgress();
+        return;
+    }
+
+    elements.correctionsList.innerHTML = '';
+
+    correctionState.corrections.forEach((correction, index) => {
+        const decision = correctionState.decisions[index];
+        let statusClass = '';
+        if (decision === 'confirmed') statusClass = 'confirmed';
+        else if (decision === 'rejected') statusClass = 'rejected';
+        else if (decision?.startsWith('edited:')) statusClass = 'edited';
+
+        const item = document.createElement('div');
+        item.className = `correction-item ${statusClass}`;
+        item.dataset.index = index;
+
+        item.innerHTML = `
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="text-xs text-gray-500">위치:</span>
+                        <span class="text-sm text-gray-300">${correction.location || '알 수 없음'}</span>
+                    </div>
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="text-xs text-gray-500">변경:</span>
+                        <span class="correction-before">${escapeHtml(correction.original || '')}</span>
+                        <span class="text-gray-500">→</span>
+                        <span class="correction-after">${escapeHtml(decision?.startsWith('edited:') ? decision.slice(7) : correction.corrected || '')}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-gray-500">이유:</span>
+                        <span class="text-sm text-gray-400">${correction.reason || '-'}</span>
+                    </div>
+                </div>
+                <div class="flex flex-col gap-2 ml-4">
+                    <button class="correction-btn-confirm px-3 py-1 text-xs rounded ${decision === 'confirmed' ? 'bg-green-600 text-white' : 'bg-gray-700 hover:bg-green-600 text-gray-300'}" data-index="${index}">
+                        ✓ 확정
+                    </button>
+                    <button class="correction-btn-reject px-3 py-1 text-xs rounded ${decision === 'rejected' ? 'bg-red-600 text-white' : 'bg-gray-700 hover:bg-red-600 text-gray-300'}" data-index="${index}">
+                        ✗ 원복
+                    </button>
+                    <button class="correction-btn-edit px-3 py-1 text-xs rounded ${decision?.startsWith('edited:') ? 'bg-yellow-600 text-white' : 'bg-gray-700 hover:bg-yellow-600 text-gray-300'}" data-index="${index}">
+                        ✎ 수정
+                    </button>
+                </div>
+            </div>
+        `;
+
+        elements.correctionsList.appendChild(item);
+    });
+
+    // 버튼 이벤트 등록
+    elements.correctionsList.querySelectorAll('.correction-btn-confirm').forEach(btn => {
+        btn.addEventListener('click', () => handleCorrectionDecision(parseInt(btn.dataset.index), 'confirmed'));
+    });
+    elements.correctionsList.querySelectorAll('.correction-btn-reject').forEach(btn => {
+        btn.addEventListener('click', () => handleCorrectionDecision(parseInt(btn.dataset.index), 'rejected'));
+    });
+    elements.correctionsList.querySelectorAll('.correction-btn-edit').forEach(btn => {
+        btn.addEventListener('click', () => handleCorrectionEdit(parseInt(btn.dataset.index)));
+    });
+
+    updateReviewProgress();
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function handleCorrectionDecision(index, decision) {
+    correctionState.decisions[index] = decision;
+    renderCorrectionsList();
+}
+
+function handleCorrectionEdit(index) {
+    const correction = correctionState.corrections[index];
+    if (!correction) return;
+
+    const currentValue = correctionState.decisions[index]?.startsWith('edited:')
+        ? correctionState.decisions[index].slice(7)
+        : correction.corrected;
+
+    const newValue = prompt('수정할 값을 입력하세요:', currentValue);
+
+    if (newValue !== null && newValue !== currentValue) {
+        correctionState.decisions[index] = `edited:${newValue}`;
+        renderCorrectionsList();
+    }
+}
+
+function updateReviewProgress() {
+    const total = correctionState.corrections.length;
+    const reviewed = Object.keys(correctionState.decisions).length;
+
+    if (elements.reviewedCount) {
+        elements.reviewedCount.textContent = reviewed;
+    }
+    if (elements.totalCorrections) {
+        elements.totalCorrections.textContent = total;
+    }
+}
+
+function confirmAllCorrections() {
+    correctionState.corrections.forEach((_, index) => {
+        if (!correctionState.decisions[index]) {
+            correctionState.decisions[index] = 'confirmed';
+        }
+    });
+    renderCorrectionsList();
+}
+
+async function saveCorrectionReview() {
+    if (!correctionState.currentFile) {
+        alert('파일을 먼저 선택해주세요.');
+        return;
+    }
+
+    // 검토 결과 정리
+    const reviewResult = {
+        file: correctionState.currentFile,
+        reviewed_at: new Date().toISOString(),
+        decisions: []
+    };
+
+    // 학습용 수정 내역 수집
+    const correctionsToLearn = [];
+
+    correctionState.corrections.forEach((correction, index) => {
+        const decision = correctionState.decisions[index] || 'pending';
+        const isEdited = decision.startsWith('edited:');
+
+        reviewResult.decisions.push({
+            ...correction,
+            decision: isEdited ? 'edited' : decision,
+            edited_value: isEdited ? decision.slice(7) : null
+        });
+
+        // 확정 또는 수정된 경우에만 학습 데이터로 수집
+        if (decision === 'confirmed' || isEdited) {
+            correctionsToLearn.push({
+                original: correction.original,
+                corrected: isEdited ? decision.slice(7) : correction.corrected,
+                file_path: correctionState.currentFile,
+                context: correction.location || '',
+                category: correction.category || 'unknown',
+                reason: correction.reason || '',
+                decision: isEdited ? 'edited' : 'confirmed'
+            });
+        }
+    });
+
+    try {
+        // 검토 결과 저장
+        const folderPath = elements.reviewFolderPath.value;
+        const reviewPath = `${folderPath}/Final_Reviewed_Gemini/${correctionState.currentFile.replace('.html', '_review.json')}`;
+
+        await window.lawpro.writeJsonFile(reviewPath, reviewResult);
+
+        // 학습 데이터 수집 (백그라운드)
+        if (correctionsToLearn.length > 0) {
+            try {
+                await window.lawpro.collectCorrections(correctionsToLearn);
+                console.log(`${correctionsToLearn.length}개 수정 내역 학습 데이터로 수집됨`);
+            } catch (learnError) {
+                console.warn('학습 데이터 수집 실패:', learnError);
+                // 학습 실패해도 저장은 성공으로 처리
+            }
+        }
+
+        alert('검토 결과가 저장되었습니다.');
+        closeCorrectionReviewModal();
+    } catch (error) {
+        alert('저장 실패: ' + error.message);
+    }
+}
+
+function setupCorrectionEventListeners() {
+    // 검토 모달 열기
+    elements.openCorrectionReview?.addEventListener('click', openCorrectionReviewModal);
+
+    // 검토 모달 닫기
+    elements.closeCorrectionModal?.addEventListener('click', closeCorrectionReviewModal);
+
+    // 모달 외부 클릭으로 닫기
+    elements.correctionReviewModal?.addEventListener('click', (e) => {
+        if (e.target === elements.correctionReviewModal) {
+            closeCorrectionReviewModal();
+        }
+    });
+
+    // 파일 선택 변경
+    elements.correctionFileSelect?.addEventListener('change', (e) => {
+        loadCorrectionsForFile(e.target.value);
+    });
+
+    // 모두 확정
+    elements.confirmAllCorrections?.addEventListener('click', confirmAllCorrections);
+
+    // 저장
+    elements.saveCorrectionReview?.addEventListener('click', saveCorrectionReview);
+}
+
+// ============================================================
 // 앱 시작
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
@@ -1561,6 +1888,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupCreditEventListeners();
     setupEditorEventListeners();
     setupTourEventListeners();
+    setupCorrectionEventListeners();
 
     // 첫 방문 확인 (약간의 지연 후)
     setTimeout(checkFirstVisit, 500);

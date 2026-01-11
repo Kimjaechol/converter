@@ -309,8 +309,16 @@ class RulesConverter:
         print(f"CSV 템플릿 생성 완료: {output_path}")
 
 
-def get_review_rules() -> dict:
-    """검수 규칙 로드 (Excel이 있으면 변환, 없으면 JSON 사용)"""
+def get_review_rules(include_learned: bool = True) -> dict:
+    """
+    검수 규칙 로드 (Excel이 있으면 변환, 없으면 JSON 사용)
+
+    Args:
+        include_learned: 학습된 패턴 포함 여부
+
+    Returns:
+        검수 규칙 dict (학습된 패턴 포함 가능)
+    """
     converter = RulesConverter()
 
     # Excel 파일이 있고 JSON보다 최신이면 변환
@@ -319,16 +327,75 @@ def get_review_rules() -> dict:
         json_mtime = converter.output_json.stat().st_mtime if converter.output_json.exists() else 0
 
         if excel_mtime > json_mtime:
-            return converter.convert_excel_to_json()
+            rules = converter.convert_excel_to_json()
+        else:
+            rules = converter.load_existing_json()
+    else:
+        rules = converter.load_existing_json()
 
-    # JSON 로드
-    return converter.load_existing_json()
+    # 학습된 패턴 통합
+    if include_learned:
+        rules = integrate_learned_patterns(rules)
+
+    return rules
 
 
-def generate_review_prompt(document_content: str, rules: dict = None) -> str:
-    """검수 프롬프트 생성"""
+def integrate_learned_patterns(rules: dict) -> dict:
+    """
+    학습된 오류 패턴을 검수 규칙에 통합
+
+    Args:
+        rules: 기존 검수 규칙
+
+    Returns:
+        학습된 패턴이 추가된 검수 규칙
+    """
+    try:
+        from error_learning import PatternStore, PromptEnhancer, ERROR_SOURCES
+
+        store = PatternStore()
+        stats = store.get_stats()
+
+        # 패턴이 없으면 그대로 반환
+        if stats['total'] == 0:
+            return rules
+
+        enhancer = PromptEnhancer(store)
+        enhanced = enhancer.enhance_review_rules(rules)
+
+        # 통계 정보 추가
+        enhanced['_학습_통계'] = {
+            '총_패턴_수': stats['total'],
+            '이미지_PDF_패턴': stats['by_source'].get('image_pdf', 0),
+            '디지털_문서_패턴': stats['by_source'].get('digital_doc', 0),
+            '최대_발생빈도': stats['top_frequency']
+        }
+
+        return enhanced
+
+    except ImportError:
+        # error_learning 모듈이 없으면 원본 반환
+        return rules
+    except Exception as e:
+        print(f"[integrate_learned_patterns] 오류: {e}")
+        return rules
+
+
+def generate_review_prompt(document_content: str, rules: dict = None,
+                          document_source: str = None) -> str:
+    """
+    검수 프롬프트 생성
+
+    Args:
+        document_content: 검수할 문서 내용
+        rules: 검수 규칙 (None이면 자동 로드)
+        document_source: 문서 출처 ('image_pdf' 또는 'digital_doc')
+
+    Returns:
+        생성된 프롬프트
+    """
     if rules is None:
-        rules = get_review_rules()
+        rules = get_review_rules(include_learned=True)
 
     # 시스템 지시 가져오기
     system = rules.get('시스템_지시', {})
@@ -351,6 +418,39 @@ def generate_review_prompt(document_content: str, rules: dict = None) -> str:
                 if isinstance(errors, list):
                     common_words.append(f"  - {correct}: {', '.join(errors[:3])}")
 
+    # 학습된 오류 패턴 추가
+    learned_section = ""
+    learned_errors = rules.get('학습된_오류', {})
+    if learned_errors:
+        learned_lines = []
+
+        # 문서 출처에 맞는 패턴 우선
+        if document_source == 'image_pdf' and '이미지_PDF_OCR' in learned_errors:
+            ocr_patterns = learned_errors['이미지_PDF_OCR'].get('패턴', [])[:30]
+            if ocr_patterns:
+                learned_lines.append("\n[학습된 OCR 오류 패턴 - 이미지 PDF]")
+                for p in ocr_patterns:
+                    learned_lines.append(f"  - {p.get('오류', '')} → {p.get('정답', '')} (빈도: {p.get('빈도', 1)})")
+
+        elif document_source == 'digital_doc' and '디지털_문서' in learned_errors:
+            doc_patterns = learned_errors['디지털_문서'].get('패턴', [])[:30]
+            if doc_patterns:
+                learned_lines.append("\n[학습된 변환 오류 패턴 - 디지털 문서]")
+                for p in doc_patterns:
+                    learned_lines.append(f"  - {p.get('오류', '')} → {p.get('정답', '')} (빈도: {p.get('빈도', 1)})")
+
+        else:
+            # 출처 불명 시 전체 포함 (상위 20개씩)
+            for source_name, source_data in learned_errors.items():
+                patterns = source_data.get('패턴', [])[:20]
+                if patterns:
+                    learned_lines.append(f"\n[학습된 오류 패턴 - {source_name}]")
+                    for p in patterns:
+                        learned_lines.append(f"  - {p.get('오류', '')} → {p.get('정답', '')} (빈도: {p.get('빈도', 1)})")
+
+        if learned_lines:
+            learned_section = chr(10).join(learned_lines)
+
     # 프롬프트 조합
     prompt = f"""{role}
 
@@ -362,6 +462,7 @@ def generate_review_prompt(document_content: str, rules: dict = None) -> str:
 
 [자주 틀리는 단어 (오류→정답)]
 {chr(10).join(common_words[:20])}
+{learned_section}
 
 [검수할 문서]
 {document_content}
