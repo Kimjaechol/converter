@@ -1299,50 +1299,44 @@ function updateMarkdownPreview() {
 const tourSteps = [
     {
         target: '#navConvert',
-        title: '문서 변환',
+        title: '1. 문서 변환',
         description: 'HWPX, DOCX, XLSX, PPTX, PDF 파일을 HTML로 변환합니다. 가장 많이 사용하는 기능입니다.',
         position: 'right'
     },
     {
         target: '#navReview',
-        title: 'AI 검수',
-        description: 'Claude, Gemini, OpenAI를 사용하여 변환된 문서의 OCR 오류를 자동으로 검수합니다.',
+        title: '2. AI 검수',
+        description: 'Claude(권장), Gemini, OpenAI를 사용하여 OCR 오류를 자동으로 검수합니다. Claude Desktop을 먼저 연결하세요.',
         position: 'right'
     },
     {
         target: '#navEditor',
-        title: '에디터',
+        title: '3. 에디터',
         description: '변환된 HTML이나 Markdown 문서를 직접 편집할 수 있습니다. 표 편집, 텍스트 서식 등을 지원합니다.',
         position: 'right'
     },
     {
         target: '#navSettings',
-        title: '설정',
-        description: 'Python 환경 확인, API 키 관리, Claude MCP 연결 등을 설정합니다.',
+        title: '4. 설정',
+        description: 'Python 환경 확인, Claude MCP 연결, 백업 AI API 키 관리를 합니다.',
         position: 'right'
     },
     {
-        target: '#upstageKeyInput',
-        title: 'Upstage API Key',
-        description: '이미지 PDF 변환에 필요한 API 키입니다. 일반 PDF나 오피스 문서는 없어도 됩니다.',
-        position: 'bottom'
-    },
-    {
         target: '#dropZone',
-        title: '폴더 드래그',
+        title: '5. 폴더 선택',
         description: '변환할 문서가 있는 폴더를 여기에 드래그하거나 클릭하여 선택합니다.',
         position: 'top'
     },
     {
         target: '#startConvert',
-        title: '변환 시작',
+        title: '6. 변환 시작',
         description: '폴더를 선택한 후 이 버튼을 클릭하면 문서 변환이 시작됩니다.',
         position: 'top'
     },
     {
         target: '#creditBalance',
-        title: '크레딧 잔액',
-        description: '이미지 PDF 변환에 사용되는 크레딧 잔액입니다. 1페이지당 55원이 차감됩니다.',
+        title: '7. 크레딧 잔액',
+        description: '이미지 PDF 변환에 사용되는 크레딧입니다. 1페이지당 55원이 차감됩니다. 일반 문서 변환은 무료입니다.',
         position: 'right'
     }
 ];

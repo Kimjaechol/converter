@@ -34,6 +34,13 @@ try:
 except ImportError:
     HAS_CREDIT = False
 
+# 관리자 설정 (Upstage API 키)
+try:
+    from admin_config import get_admin_config
+    HAS_ADMIN_CONFIG = True
+except ImportError:
+    HAS_ADMIN_CONFIG = False
+
 
 class FileProcessor:
     """하이브리드 문서 처리기"""
@@ -42,15 +49,32 @@ class FileProcessor:
     UPSTAGE_API_URL = "https://api.upstage.ai/v1/document-ai/document-parse"
     MAX_PDF_PAGES_PER_REQUEST = 10  # 대용량 PDF 분할 단위
 
-    def __init__(self, api_key: str, output_folder: str,
+    def __init__(self, output_folder: str,
                  generate_clean_html: bool = True,
                  generate_markdown: bool = True,
-                 check_credits: bool = True):
-        self.api_key = api_key
+                 check_credits: bool = True,
+                 api_key: str = None):  # api_key는 하위호환을 위해 유지 (사용되지 않음)
+        """
+        FileProcessor 초기화
+
+        Args:
+            output_folder: 출력 폴더 경로
+            generate_clean_html: Clean HTML 생성 여부
+            generate_markdown: Markdown 생성 여부
+            check_credits: 크레딧 확인 여부
+            api_key: (deprecated) 하위호환용 - 관리자 설정에서 자동 로드됨
+        """
         self.output_folder = output_folder
         self.generate_clean_html = generate_clean_html
         self.generate_markdown = generate_markdown
         self.check_credits = check_credits
+
+        # 관리자 설정에서 Upstage API 키 로드
+        if HAS_ADMIN_CONFIG:
+            admin_config = get_admin_config()
+            self.api_key = admin_config.upstage_api_key
+        else:
+            self.api_key = api_key or ""
 
         # Cleaner 초기화
         if HAS_CLEANER and (generate_clean_html or generate_markdown):

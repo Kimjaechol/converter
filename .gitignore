@@ -41,6 +41,7 @@ Thumbs.db
 **/config.json
 **/secrets.json
 **/credentials.json
+**/admin_config.json
 
 # Test outputs
 Converted_HTML/
