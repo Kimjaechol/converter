@@ -49,7 +49,8 @@ class FileProcessor:
     UPSTAGE_API_URL = "https://api.upstage.ai/v1/document-ai/document-parse"
     MAX_PDF_PAGES_PER_REQUEST = 10  # Upstage 권장: 최대 10페이지
     MAX_FILE_SIZE_MB = 50  # 최대 파일 크기 (MB)
-    API_CALL_DELAY = 2  # API 호출 간 대기 시간 (초)
+    # 429 에러 발생 시 재시도 대기 시간 (초) - 충분히 길게
+    RATE_LIMIT_RETRY_DELAYS = [10, 30, 60, 120, 180]  # 10초, 30초, 1분, 2분, 3분
 
     def __init__(self, output_folder: str,
                  generate_clean_html: bool = True,
@@ -842,11 +843,7 @@ class FileProcessor:
                     writer.write(f)
                 temp_files.append(temp_path)
 
-                # API 호출 전 대기 (Rate Limit 방지, 첫 번째 청크 제외)
-                if chunk_idx > 0:
-                    time_module.sleep(self.API_CALL_DELAY)
-
-                # API 호출
+                # API 호출 (429 발생 시 내부에서 충분히 대기 후 재시도)
                 try:
                     part_html = self._call_upstage_api(temp_path)
 
@@ -880,14 +877,15 @@ class FileProcessor:
 
         return '\n'.join(html_parts)
 
-    def _call_upstage_api(self, file_path: str, max_retries: int = 3) -> str:
+    def _call_upstage_api(self, file_path: str) -> str:
         """
         Upstage Document Parse API 호출
 
         에러 핸들링:
-        - 429 Too Many Requests: 지수 백오프 후 재시도
+        - 429 Too Many Requests: 충분히 대기 후 재시도 (10초→30초→1분→2분→3분), 성공까지 반복
         - 400 Bad Request: 파일 형식/크기 문제 (재시도 안함)
         - 500 Server Error: 대기 후 재시도
+        - 기타 네트워크 오류: 짧은 대기 후 재시도
         """
         import time as time_module
 
@@ -902,10 +900,11 @@ class FileProcessor:
             "coordinates": "false"
         }
 
-        last_error = None
-        response = None
+        rate_limit_retry_count = 0  # 429 에러 재시도 횟수
+        other_retry_count = 0  # 기타 에러 재시도 횟수
+        max_other_retries = 3  # 429 외 에러는 3회까지만 재시도
 
-        for attempt in range(max_retries):
+        while True:  # 429는 성공할 때까지 계속 재시도
             try:
                 with open(file_path, "rb") as f:
                     files = {"document": (os.path.basename(file_path), f)}
@@ -918,11 +917,19 @@ class FileProcessor:
                         timeout=300  # 5분 타임아웃
                     )
 
-                # 429 Too Many Requests - 대기 후 재시도
+                # 429 Too Many Requests - 충분히 대기 후 재시도 (성공할 때까지)
                 if response.status_code == 429:
-                    wait_time = (2 ** attempt) * 3 + 2  # 5초, 8초, 11초
+                    # 대기 시간: 10초, 30초, 1분, 2분, 3분 (이후 3분 반복)
+                    delay_idx = min(rate_limit_retry_count, len(self.RATE_LIMIT_RETRY_DELAYS) - 1)
+                    wait_time = self.RATE_LIMIT_RETRY_DELAYS[delay_idx]
+                    rate_limit_retry_count += 1
+
+                    # 로그 출력 (Electron에서 확인 가능)
+                    import sys
+                    print(f'{{"type": "rate_limit", "file": "{os.path.basename(file_path)}", "wait": {wait_time}, "retry": {rate_limit_retry_count}}}', file=sys.stderr, flush=True)
+
                     time_module.sleep(wait_time)
-                    continue
+                    continue  # 재시도
 
                 # 400 Bad Request - 파일 문제 (재시도 불필요)
                 if response.status_code == 400:
@@ -933,11 +940,14 @@ class FileProcessor:
                         error_msg = response.text[:200]
                     return f"<p>API 요청 오류 (400): {error_msg}</p>"
 
-                # 500 Server Error - 대기 후 재시도
+                # 500 Server Error - 대기 후 재시도 (최대 3회)
                 if response.status_code >= 500:
-                    wait_time = (2 ** attempt) * 2
-                    time_module.sleep(wait_time)
-                    continue
+                    other_retry_count += 1
+                    if other_retry_count <= max_other_retries:
+                        wait_time = other_retry_count * 10  # 10초, 20초, 30초
+                        time_module.sleep(wait_time)
+                        continue
+                    return f"<p>API 서버 오류 ({response.status_code}): 재시도 {max_other_retries}회 실패</p>"
 
                 response.raise_for_status()
                 result = response.json()
@@ -954,35 +964,33 @@ class FileProcessor:
                     return f"<p>API 응답 형식 오류: {str(result)[:500]}</p>"
 
             except requests.exceptions.Timeout:
-                last_error = Exception("API 요청 타임아웃 (5분 초과)")
-                if attempt < max_retries - 1:
+                other_retry_count += 1
+                if other_retry_count <= max_other_retries:
+                    time_module.sleep(10)
+                    continue
+                return "<p>API 요청 타임아웃 (5분 초과)</p>"
+
+            except requests.exceptions.ConnectionError:
+                other_retry_count += 1
+                if other_retry_count <= max_other_retries:
                     time_module.sleep(5)
                     continue
-            except requests.exceptions.ConnectionError as e:
-                last_error = e
-                if attempt < max_retries - 1:
+                return "<p>API 연결 오류: 네트워크 확인 필요</p>"
+
+            except requests.exceptions.HTTPError as e:
+                # 429는 위에서 처리됨, 여기는 기타 HTTP 에러
+                other_retry_count += 1
+                if other_retry_count <= max_other_retries:
+                    time_module.sleep(5)
+                    continue
+                return f"<p>API HTTP 오류: {str(e)}</p>"
+
+            except Exception as e:
+                other_retry_count += 1
+                if other_retry_count <= max_other_retries:
                     time_module.sleep(3)
                     continue
-            except requests.exceptions.HTTPError as e:
-                last_error = e
-                if response and response.status_code == 429:
-                    wait_time = (2 ** attempt) * 3 + 2
-                    time_module.sleep(wait_time)
-                    continue
-                elif response and response.status_code >= 500:
-                    wait_time = (2 ** attempt) * 2
-                    time_module.sleep(wait_time)
-                    continue
-                raise
-            except Exception as e:
-                last_error = e
-                if attempt < max_retries - 1:
-                    time_module.sleep(2)
-                    continue
-
-        # 모든 재시도 실패
-        error_msg = str(last_error) if last_error else "API 호출 실패"
-        return f"<p>API 오류: {error_msg}</p>"
+                return f"<p>API 오류: {str(e)}</p>"
 
     # ============================================================
     # HTML 저장
