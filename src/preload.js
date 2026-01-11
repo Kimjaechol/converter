@@ -6,6 +6,9 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 
+// 앱 버전 (하드코딩)
+const appVersion = '1.0.0';
+
 // API를 window.lawpro로 노출
 contextBridge.exposeInMainWorld('lawpro', {
     // ========================================
@@ -208,5 +211,5 @@ contextBridge.exposeInMainWorld('lawpro', {
     // 시스템 정보
     // ========================================
     platform: process.platform,
-    appVersion: require('../package.json').version
+    appVersion: appVersion
 });
