@@ -30,19 +30,43 @@ LEARNED_PATTERNS_FILE = ENGINE_DIR / "learned_patterns.json"
 PENDING_SYNC_FILE = ENGINE_DIR / "pending_corrections.json"
 CONFIG_FILE = ENGINE_DIR / "learning_config.json"
 
-# 서버 엔드포인트 (추후 실제 서버로 교체)
+# 서버 엔드포인트 (Railway 배포 후 실제 URL로 교체)
 ERROR_COLLECTION_SERVER = os.environ.get(
     'LAWPRO_ERROR_SERVER',
-    'https://api.lawpro.kr/v1/error-patterns'  # 예시 URL
+    'https://lawpro-admin.up.railway.app'  # Railway 배포 URL (예시)
 )
 
-# 기본 설정값
+# LLM 컨텍스트 제한 (토큰 기준)
+# - GPT-4o: 128K tokens
+# - Gemini 2.0 Flash: 1M tokens
+# - Claude 3.5 Sonnet: 200K tokens
+#
+# 패턴당 평균 토큰: 약 50 tokens (한글 포함)
+# 프롬프트 기타 요소: 약 5K tokens 필요
+#
+# GPT-4o 기준 권장값:
+#   (128,000 - 5,000) / 50 = 2,460 패턴 (안전 마진 적용 → 2,000개)
+#
+# Gemini 2.0 기준 권장값:
+#   (1,000,000 - 5,000) / 50 = 19,900 패턴 (안전 마진 → 10,000개)
+
+LLM_CONTEXT_LIMITS = {
+    'gpt-4o': {'tokens': 128000, 'recommended_patterns': 2000},
+    'gpt-4o-mini': {'tokens': 128000, 'recommended_patterns': 2000},
+    'gemini-2.0-flash': {'tokens': 1000000, 'recommended_patterns': 10000},
+    'gemini-1.5-pro': {'tokens': 1000000, 'recommended_patterns': 10000},
+    'claude-3.5-sonnet': {'tokens': 200000, 'recommended_patterns': 3500},
+    'claude-3-opus': {'tokens': 200000, 'recommended_patterns': 3500},
+}
+
+# 기본 설정값 (GPT-4o 기준 보수적 설정)
 DEFAULT_CONFIG = {
-    'max_patterns': 10000,          # 최대 패턴 수 (LLM 처리 한도)
-    'max_patterns_per_source': 5000, # 출처당 최대 패턴 수
-    'min_usage_to_keep': 0,         # 유지할 최소 사용 횟수 (0=제한없음)
-    'cleanup_threshold': 12000,      # 이 수를 넘으면 자동 정리
+    'max_patterns': 5000,            # 최대 패턴 수 (저장용)
+    'max_patterns_per_source': 2500, # 출처당 최대 패턴 수
+    'min_usage_to_keep': 0,          # 유지할 최소 사용 횟수 (0=제한없음)
+    'cleanup_threshold': 6000,       # 이 수를 넘으면 자동 정리
     'prompt_pattern_limit': 100,     # 프롬프트에 포함할 최대 패턴 수
+    'target_llm': 'gpt-4o',          # 타겟 LLM 모델
 }
 
 def load_config() -> dict:
