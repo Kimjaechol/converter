@@ -1,0 +1,4 @@
+{
+    "upstage_api_key": "여기에_실제_Upstage_API_키를_입력하세요",
+    "_comment": "이 파일을 admin_config.json으로 복사하고 실제 API 키를 입력하세요. admin_config.json은 git에 커밋하지 않습니다."
+}

@@ -1294,10 +1294,274 @@ function updateMarkdownPreview() {
 }
 
 // ============================================================
+// 가이드 투어
+// ============================================================
+const tourSteps = [
+    {
+        target: '#navConvert',
+        title: '1. 문서 변환',
+        description: 'HWPX, DOCX, XLSX, PPTX, PDF 파일을 HTML로 변환합니다. 가장 많이 사용하는 기능입니다.',
+        position: 'right'
+    },
+    {
+        target: '#navReview',
+        title: '2. AI 검수',
+        description: 'Claude(권장), Gemini, OpenAI를 사용하여 OCR 오류를 자동으로 검수합니다. Claude Desktop을 먼저 연결하세요.',
+        position: 'right'
+    },
+    {
+        target: '#navEditor',
+        title: '3. 에디터',
+        description: '변환된 HTML이나 Markdown 문서를 직접 편집할 수 있습니다. 표 편집, 텍스트 서식 등을 지원합니다.',
+        position: 'right'
+    },
+    {
+        target: '#navSettings',
+        title: '4. 설정',
+        description: 'Python 환경 확인, Claude MCP 연결, 백업 AI API 키 관리를 합니다.',
+        position: 'right'
+    },
+    {
+        target: '#dropZone',
+        title: '5. 폴더 선택',
+        description: '변환할 문서가 있는 폴더를 여기에 드래그하거나 클릭하여 선택합니다.',
+        position: 'top'
+    },
+    {
+        target: '#startConvert',
+        title: '6. 변환 시작',
+        description: '폴더를 선택한 후 이 버튼을 클릭하면 문서 변환이 시작됩니다.',
+        position: 'top'
+    },
+    {
+        target: '#creditBalance',
+        title: '7. 크레딧 잔액',
+        description: '이미지 PDF 변환에 사용되는 크레딧입니다. 1페이지당 55원이 차감됩니다. 일반 문서 변환은 무료입니다.',
+        position: 'right'
+    }
+];
+
+let currentTourStep = 0;
+let tourActive = false;
+
+// 투어 요소
+const tourElements = {
+    overlay: document.getElementById('tourOverlay'),
+    tooltip: document.getElementById('tourTooltip'),
+    title: document.getElementById('tourTitle'),
+    description: document.getElementById('tourDescription'),
+    prevBtn: document.getElementById('tourPrev'),
+    nextBtn: document.getElementById('tourNext'),
+    skipBtn: document.getElementById('tourSkip'),
+    stepIndicator: document.getElementById('tourStepIndicator'),
+    welcomeModal: document.getElementById('welcomeModal'),
+    startTourBtn: document.getElementById('startTour'),
+    skipTourBtn: document.getElementById('skipTour')
+};
+
+function checkFirstVisit() {
+    const visited = localStorage.getItem('lawpro_visited');
+    if (!visited) {
+        showWelcomeModal();
+    }
+}
+
+function showWelcomeModal() {
+    tourElements.welcomeModal?.classList.remove('hidden');
+}
+
+function hideWelcomeModal() {
+    tourElements.welcomeModal?.classList.add('hidden');
+    localStorage.setItem('lawpro_visited', 'true');
+}
+
+function startTour() {
+    hideWelcomeModal();
+    tourActive = true;
+    currentTourStep = 0;
+    showTourStep(currentTourStep);
+}
+
+function endTour() {
+    tourActive = false;
+    tourElements.overlay?.classList.add('hidden');
+    tourElements.tooltip?.classList.add('hidden');
+
+    // 모든 하이라이트 제거
+    document.querySelectorAll('.tour-highlight').forEach(el => {
+        el.classList.remove('tour-highlight');
+    });
+
+    localStorage.setItem('lawpro_visited', 'true');
+}
+
+function showTourStep(stepIndex) {
+    const step = tourSteps[stepIndex];
+    if (!step) {
+        endTour();
+        return;
+    }
+
+    // 이전 하이라이트 제거
+    document.querySelectorAll('.tour-highlight').forEach(el => {
+        el.classList.remove('tour-highlight');
+    });
+
+    // 타겟 요소 찾기
+    const targetEl = document.querySelector(step.target);
+    if (!targetEl) {
+        // 타겟을 찾을 수 없으면 다음 스텝으로
+        currentTourStep++;
+        showTourStep(currentTourStep);
+        return;
+    }
+
+    // 오버레이 표시
+    tourElements.overlay?.classList.remove('hidden');
+
+    // 타겟 하이라이트
+    targetEl.classList.add('tour-highlight');
+
+    // 툴팁 내용 설정
+    if (tourElements.title) tourElements.title.textContent = step.title;
+    if (tourElements.description) tourElements.description.textContent = step.description;
+
+    // 이전 버튼 표시/숨김
+    if (tourElements.prevBtn) {
+        if (stepIndex === 0) {
+            tourElements.prevBtn.classList.add('hidden');
+        } else {
+            tourElements.prevBtn.classList.remove('hidden');
+        }
+    }
+
+    // 다음 버튼 텍스트
+    if (tourElements.nextBtn) {
+        if (stepIndex === tourSteps.length - 1) {
+            tourElements.nextBtn.textContent = '완료';
+        } else {
+            tourElements.nextBtn.textContent = '다음';
+        }
+    }
+
+    // 스텝 인디케이터 업데이트
+    updateStepIndicator(stepIndex);
+
+    // 툴팁 위치 계산
+    positionTooltip(targetEl, step.position);
+
+    // 툴팁 표시
+    tourElements.tooltip?.classList.remove('hidden');
+}
+
+function positionTooltip(targetEl, position) {
+    const tooltip = tourElements.tooltip;
+    if (!tooltip || !targetEl) return;
+
+    const targetRect = targetEl.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
+
+    // 기존 화살표 클래스 제거
+    tooltip.classList.remove('arrow-top', 'arrow-bottom', 'arrow-left', 'arrow-right');
+
+    let top, left;
+    const margin = 20;
+
+    switch (position) {
+        case 'top':
+            top = targetRect.top - tooltipRect.height - margin;
+            left = targetRect.left + (targetRect.width / 2) - (tooltipRect.width / 2);
+            tooltip.classList.add('arrow-bottom');
+            break;
+        case 'bottom':
+            top = targetRect.bottom + margin;
+            left = targetRect.left + (targetRect.width / 2) - (tooltipRect.width / 2);
+            tooltip.classList.add('arrow-top');
+            break;
+        case 'left':
+            top = targetRect.top + (targetRect.height / 2) - (tooltipRect.height / 2);
+            left = targetRect.left - tooltipRect.width - margin;
+            tooltip.classList.add('arrow-right');
+            break;
+        case 'right':
+        default:
+            top = targetRect.top + (targetRect.height / 2) - (tooltipRect.height / 2);
+            left = targetRect.right + margin;
+            tooltip.classList.add('arrow-left');
+            break;
+    }
+
+    // 화면 경계 체크
+    if (left < 10) left = 10;
+    if (left + tooltipRect.width > window.innerWidth - 10) {
+        left = window.innerWidth - tooltipRect.width - 10;
+    }
+    if (top < 10) top = 10;
+    if (top + tooltipRect.height > window.innerHeight - 10) {
+        top = window.innerHeight - tooltipRect.height - 10;
+    }
+
+    tooltip.style.top = `${top}px`;
+    tooltip.style.left = `${left}px`;
+}
+
+function updateStepIndicator(currentIndex) {
+    const indicator = tourElements.stepIndicator;
+    if (!indicator) return;
+
+    indicator.innerHTML = '';
+    tourSteps.forEach((_, index) => {
+        const dot = document.createElement('div');
+        dot.className = 'tour-step-dot';
+        if (index === currentIndex) {
+            dot.classList.add('active');
+        }
+        indicator.appendChild(dot);
+    });
+}
+
+function nextTourStep() {
+    currentTourStep++;
+    if (currentTourStep >= tourSteps.length) {
+        endTour();
+        alert('가이드 투어가 완료되었습니다!\n\n이제 문서 변환을 시작해보세요.');
+    } else {
+        showTourStep(currentTourStep);
+    }
+}
+
+function prevTourStep() {
+    if (currentTourStep > 0) {
+        currentTourStep--;
+        showTourStep(currentTourStep);
+    }
+}
+
+function setupTourEventListeners() {
+    tourElements.startTourBtn?.addEventListener('click', startTour);
+    tourElements.skipTourBtn?.addEventListener('click', hideWelcomeModal);
+    tourElements.nextBtn?.addEventListener('click', nextTourStep);
+    tourElements.prevBtn?.addEventListener('click', prevTourStep);
+    tourElements.skipBtn?.addEventListener('click', endTour);
+
+    // 오버레이 클릭으로 닫지 않음 (의도적)
+    // ESC 키로 투어 종료
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && tourActive) {
+            endTour();
+        }
+    });
+}
+
+// ============================================================
 // 앱 시작
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
     init();
     setupCreditEventListeners();
     setupEditorEventListeners();
+    setupTourEventListeners();
+
+    // 첫 방문 확인 (약간의 지연 후)
+    setTimeout(checkFirstVisit, 500);
 });

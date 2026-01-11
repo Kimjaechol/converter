@@ -69,6 +69,94 @@
         .log-error { color: #ef4444; }
         .log-warning { color: #f59e0b; }
         .log-info { color: #3b82f6; }
+
+        /* 가이드 투어 */
+        .tour-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.75);
+            z-index: 1000;
+            pointer-events: auto;
+        }
+        .tour-highlight {
+            position: relative;
+            z-index: 1001;
+            box-shadow: 0 0 0 4px #6366f1, 0 0 20px rgba(99, 102, 241, 0.5);
+            border-radius: 8px;
+            animation: tour-pulse 2s ease-in-out infinite;
+        }
+        @keyframes tour-pulse {
+            0%, 100% { box-shadow: 0 0 0 4px #6366f1, 0 0 20px rgba(99, 102, 241, 0.5); }
+            50% { box-shadow: 0 0 0 6px #818cf8, 0 0 30px rgba(99, 102, 241, 0.7); }
+        }
+        .tour-tooltip {
+            position: fixed;
+            z-index: 1002;
+            background: #1f2937;
+            border: 2px solid #6366f1;
+            border-radius: 12px;
+            padding: 20px;
+            max-width: 320px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+            animation: tour-fade-in 0.3s ease-out;
+        }
+        @keyframes tour-fade-in {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .tour-tooltip::before {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            background: #1f2937;
+            border: 2px solid #6366f1;
+            transform: rotate(45deg);
+        }
+        .tour-tooltip.arrow-top::before {
+            top: -10px;
+            left: 50%;
+            margin-left: -8px;
+            border-right: none;
+            border-bottom: none;
+        }
+        .tour-tooltip.arrow-bottom::before {
+            bottom: -10px;
+            left: 50%;
+            margin-left: -8px;
+            border-left: none;
+            border-top: none;
+        }
+        .tour-tooltip.arrow-left::before {
+            left: -10px;
+            top: 50%;
+            margin-top: -8px;
+            border-right: none;
+            border-top: none;
+        }
+        .tour-tooltip.arrow-right::before {
+            right: -10px;
+            top: 50%;
+            margin-top: -8px;
+            border-left: none;
+            border-bottom: none;
+        }
+        .tour-step-indicator {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+            margin-top: 16px;
+        }
+        .tour-step-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4b5563;
+            transition: background 0.3s;
+        }
+        .tour-step-dot.active {
+            background: #6366f1;
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-gray-100 font-sans min-h-screen">
@@ -162,13 +250,8 @@
                         <h2 class="text-2xl font-bold">문서 변환</h2>
                         <p class="text-gray-400 mt-1">HWPX, DOCX, XLSX, PPTX, PDF를 HTML로 변환합니다</p>
                     </div>
-                    <div class="flex items-center space-x-3">
-                        <input type="password" id="upstageKeyInput" placeholder="Upstage API Key (선택)"
-                            class="px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-sm w-64 focus:border-primary-500 focus:outline-none">
-                        <button id="saveUpstageKey" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors">
-                            저장
-                        </button>
-                    </div>
+                    <!-- 내부용 (UI에 표시 안함) -->
+                    <input type="hidden" id="upstageKeyInput" value="">
                 </div>
 
                 <!-- 출력 옵션 -->
@@ -260,13 +343,13 @@
             <section id="pageReview" class="page flex-1 flex flex-col p-6 hidden overflow-y-auto">
                 <div class="mb-6">
                     <h2 class="text-2xl font-bold">AI 검수</h2>
-                    <p class="text-gray-400 mt-1">Claude, Gemini, 또는 OpenAI를 사용하여 OCR 오류를 검수합니다</p>
+                    <p class="text-gray-400 mt-1">변환된 문서의 OCR 오류를 AI가 자동으로 검수합니다</p>
                 </div>
 
                 <!-- AI 연결 카드 -->
                 <div class="grid grid-cols-3 gap-4 mb-6">
-                    <!-- Claude 카드 -->
-                    <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
+                    <!-- Claude 카드 (권장) -->
+                    <div class="bg-gray-800 rounded-xl p-5 border-2 border-purple-600">
                         <div class="flex items-center justify-between mb-3">
                             <div class="flex items-center">
                                 <div class="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center mr-3">
@@ -274,21 +357,21 @@
                                 </div>
                                 <div>
                                     <h3 class="font-bold">Claude</h3>
-                                    <p class="text-xs text-gray-400">MCP 연결</p>
+                                    <p class="text-xs text-purple-400">권장</p>
                                 </div>
                             </div>
                             <span id="claudeConnectionBadge" class="px-2 py-1 rounded-full text-xs bg-gray-700 text-gray-400">미연결</span>
                         </div>
                         <p class="text-xs text-gray-400 mb-3">
-                            Claude Desktop과 MCP로 연결. 추가 비용 없음.
+                            본인의 Claude 계정으로 MCP 연결하여 사용합니다. 별도 비용 없이 Claude Desktop 사용량 내에서 무료로 이용 가능합니다.
                         </p>
                         <button id="connectClaude" class="w-full py-2 bg-purple-600 hover:bg-purple-500 rounded-lg text-sm font-medium transition-colors">
-                            원클릭 연결
+                            Claude Desktop 연결
                         </button>
                         <p id="claudeMessage" class="mt-2 text-xs text-center hidden"></p>
                     </div>
 
-                    <!-- Gemini 카드 -->
+                    <!-- Gemini 카드 (백업) -->
                     <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
                         <div class="flex items-center justify-between mb-3">
                             <div class="flex items-center">
@@ -297,12 +380,13 @@
                                 </div>
                                 <div>
                                     <h3 class="font-bold">Gemini</h3>
-                                    <p class="text-xs text-gray-400">API 백업</p>
+                                    <p class="text-xs text-gray-400">백업 옵션</p>
                                 </div>
                             </div>
                             <span id="geminiConnectionBadge" class="px-2 py-1 rounded-full text-xs bg-gray-700 text-gray-400">미설정</span>
                         </div>
-                        <input type="password" id="geminiKeyInput" placeholder="Gemini API Key"
+                        <p class="text-xs text-gray-500 mb-2">Claude가 없거나 사용량 초과 시</p>
+                        <input type="password" id="geminiKeyInput" placeholder="본인의 Gemini API Key"
                             class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-xs mb-2 focus:border-blue-500 focus:outline-none">
                         <div class="flex space-x-2">
                             <select id="geminiModelSelect" class="flex-1 px-2 py-2 bg-gray-700 border border-gray-600 rounded-lg text-xs focus:border-blue-500 focus:outline-none">
@@ -316,7 +400,7 @@
                         </div>
                     </div>
 
-                    <!-- OpenAI 카드 -->
+                    <!-- OpenAI 카드 (백업) -->
                     <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
                         <div class="flex items-center justify-between mb-3">
                             <div class="flex items-center">
@@ -325,12 +409,13 @@
                                 </div>
                                 <div>
                                     <h3 class="font-bold">OpenAI</h3>
-                                    <p class="text-xs text-gray-400">GPT API</p>
+                                    <p class="text-xs text-gray-400">백업 옵션</p>
                                 </div>
                             </div>
                             <span id="openaiConnectionBadge" class="px-2 py-1 rounded-full text-xs bg-gray-700 text-gray-400">미설정</span>
                         </div>
-                        <input type="password" id="openaiKeyInput" placeholder="OpenAI API Key"
+                        <p class="text-xs text-gray-500 mb-2">Claude가 없거나 사용량 초과 시</p>
+                        <input type="password" id="openaiKeyInput" placeholder="본인의 OpenAI API Key"
                             class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-xs mb-2 focus:border-green-500 focus:outline-none">
                         <div class="flex space-x-2">
                             <select id="openaiModelSelect" class="flex-1 px-2 py-2 bg-gray-700 border border-gray-600 rounded-lg text-xs focus:border-green-500 focus:outline-none">
@@ -533,25 +618,16 @@
                         <div id="installOutput" class="mt-4 bg-gray-900 rounded-lg p-4 font-mono text-xs max-h-40 overflow-y-auto hidden"></div>
                     </div>
 
-                    <!-- API 키 관리 -->
+                    <!-- AI 검수 API 키 (사용자 입력용) -->
                     <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 mb-6">
-                        <h3 class="font-bold text-lg mb-4">API 키 관리</h3>
+                        <h3 class="font-bold text-lg mb-2">AI 검수 API 키</h3>
+                        <p class="text-sm text-gray-400 mb-4">
+                            Claude 계정이 없거나, 사용량 제한에 걸린 경우 Gemini 또는 OpenAI API를 사용하여 검수할 수 있습니다.
+                        </p>
 
                         <div class="space-y-4">
                             <div>
-                                <label class="block text-sm text-gray-400 mb-2">Upstage Document Parse API</label>
-                                <div class="flex space-x-2">
-                                    <input type="password" id="settingsUpstageKey" placeholder="sk-..."
-                                        class="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm focus:border-primary-500 focus:outline-none">
-                                    <button id="settingsSaveUpstage" class="px-4 py-2 bg-primary-600 hover:bg-primary-500 rounded-lg text-sm transition-colors">
-                                        저장
-                                    </button>
-                                </div>
-                                <p class="text-xs text-gray-500 mt-1">이미지 PDF 변환에 사용됩니다</p>
-                            </div>
-
-                            <div>
-                                <label class="block text-sm text-gray-400 mb-2">Gemini API</label>
+                                <label class="block text-sm text-gray-400 mb-2">Gemini API Key (선택)</label>
                                 <div class="flex space-x-2">
                                     <input type="password" id="settingsGeminiKey" placeholder="AI..."
                                         class="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm focus:border-blue-500 focus:outline-none">
@@ -559,7 +635,19 @@
                                         저장
                                     </button>
                                 </div>
-                                <p class="text-xs text-gray-500 mt-1">Claude 백업용 검수에 사용됩니다</p>
+                                <p class="text-xs text-gray-500 mt-1">Google AI Studio에서 무료로 발급 가능</p>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm text-gray-400 mb-2">OpenAI API Key (선택)</label>
+                                <div class="flex space-x-2">
+                                    <input type="password" id="settingsOpenaiKey" placeholder="sk-..."
+                                        class="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm focus:border-green-500 focus:outline-none">
+                                    <button id="settingsSaveOpenai" class="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg text-sm transition-colors">
+                                        저장
+                                    </button>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">OpenAI 플랫폼에서 발급 (유료)</p>
                             </div>
                         </div>
                     </div>
@@ -645,6 +733,42 @@
                 * 결제는 추후 토스페이먼츠/카카오페이 연동 예정<br>
                 * 현재 테스트 모드: 버튼 클릭 시 바로 충전
             </p>
+        </div>
+    </div>
+
+    <!-- 가이드 투어 오버레이 -->
+    <div id="tourOverlay" class="tour-overlay hidden"></div>
+    <div id="tourTooltip" class="tour-tooltip hidden">
+        <h3 id="tourTitle" class="text-lg font-bold text-primary-400 mb-2"></h3>
+        <p id="tourDescription" class="text-sm text-gray-300 mb-4"></p>
+        <div class="flex items-center justify-between">
+            <button id="tourSkip" class="text-sm text-gray-500 hover:text-gray-300">건너뛰기</button>
+            <div class="flex items-center space-x-2">
+                <button id="tourPrev" class="px-3 py-1 text-sm bg-gray-700 hover:bg-gray-600 rounded hidden">이전</button>
+                <button id="tourNext" class="px-4 py-1 text-sm bg-primary-600 hover:bg-primary-500 rounded font-medium">다음</button>
+            </div>
+        </div>
+        <div id="tourStepIndicator" class="tour-step-indicator"></div>
+    </div>
+
+    <!-- 환영 모달 (첫 방문 시) -->
+    <div id="welcomeModal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 hidden">
+        <div class="bg-gray-800 rounded-2xl p-8 w-full max-w-md border border-gray-700 shadow-2xl text-center">
+            <div class="w-16 h-16 bg-primary-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path>
+                </svg>
+            </div>
+            <h2 class="text-2xl font-bold mb-2">LawPro Fast Converter에 오신 것을 환영합니다!</h2>
+            <p class="text-gray-400 mb-6">HWPX, DOCX, PDF 등 다양한 문서를 HTML로 빠르게 변환할 수 있습니다.</p>
+            <div class="space-y-3">
+                <button id="startTour" class="w-full py-3 bg-primary-600 hover:bg-primary-500 rounded-lg font-medium transition-colors">
+                    사용법 둘러보기 (권장)
+                </button>
+                <button id="skipTour" class="w-full py-3 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors">
+                    바로 시작하기
+                </button>
+            </div>
         </div>
     </div>
 
