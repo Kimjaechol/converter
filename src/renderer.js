@@ -1802,13 +1802,31 @@ async function saveCorrectionReview() {
         decisions: []
     };
 
+    // 학습용 수정 내역 수집
+    const correctionsToLearn = [];
+
     correctionState.corrections.forEach((correction, index) => {
         const decision = correctionState.decisions[index] || 'pending';
+        const isEdited = decision.startsWith('edited:');
+
         reviewResult.decisions.push({
             ...correction,
-            decision: decision.startsWith('edited:') ? 'edited' : decision,
-            edited_value: decision.startsWith('edited:') ? decision.slice(7) : null
+            decision: isEdited ? 'edited' : decision,
+            edited_value: isEdited ? decision.slice(7) : null
         });
+
+        // 확정 또는 수정된 경우에만 학습 데이터로 수집
+        if (decision === 'confirmed' || isEdited) {
+            correctionsToLearn.push({
+                original: correction.original,
+                corrected: isEdited ? decision.slice(7) : correction.corrected,
+                file_path: correctionState.currentFile,
+                context: correction.location || '',
+                category: correction.category || 'unknown',
+                reason: correction.reason || '',
+                decision: isEdited ? 'edited' : 'confirmed'
+            });
+        }
     });
 
     try {
@@ -1817,6 +1835,17 @@ async function saveCorrectionReview() {
         const reviewPath = `${folderPath}/Final_Reviewed_Gemini/${correctionState.currentFile.replace('.html', '_review.json')}`;
 
         await window.lawpro.writeJsonFile(reviewPath, reviewResult);
+
+        // 학습 데이터 수집 (백그라운드)
+        if (correctionsToLearn.length > 0) {
+            try {
+                await window.lawpro.collectCorrections(correctionsToLearn);
+                console.log(`${correctionsToLearn.length}개 수정 내역 학습 데이터로 수집됨`);
+            } catch (learnError) {
+                console.warn('학습 데이터 수집 실패:', learnError);
+                // 학습 실패해도 저장은 성공으로 처리
+            }
+        }
 
         alert('검토 결과가 저장되었습니다.');
         closeCorrectionReviewModal();

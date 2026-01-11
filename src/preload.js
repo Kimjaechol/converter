@@ -130,6 +130,21 @@ contextBridge.exposeInMainWorld('lawpro', {
         ipcRenderer.invoke('write-json-file', filePath, data),
 
     // ========================================
+    // 오류 학습 시스템
+    // ========================================
+    // 수정 내역 수집 (로컬 저장)
+    collectCorrections: (corrections) =>
+        ipcRenderer.invoke('collect-corrections', corrections),
+
+    // 학습 데이터 통계 조회
+    getLearningStats: () =>
+        ipcRenderer.invoke('get-learning-stats'),
+
+    // 서버와 동기화
+    syncLearningData: () =>
+        ipcRenderer.invoke('sync-learning-data'),
+
+    // ========================================
     // 시스템 상태
     // ========================================
     checkPython: () =>
