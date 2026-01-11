@@ -1,11 +1,14 @@
 # LawPro Admin Server Dependencies
+# 버전 호환성 확인됨
 
-# Web Framework
-fastapi>=0.104.0
-uvicorn[standard]>=0.24.0
+# Web Framework (호환 버전)
+fastapi>=0.110.0,<0.116.0
+uvicorn[standard]>=0.24.0,<0.35.0
+starlette>=0.36.0,<0.46.0
 
-# Database
-supabase>=2.0.0
+# Database (Supabase - httpx 호환 버전)
+supabase>=2.3.0,<2.4.0
+httpx>=0.24.0,<0.25.0
 
 # Authentication
 python-jose[cryptography]>=3.3.0
@@ -14,6 +17,3 @@ PyJWT>=2.8.0
 # Utilities
 python-multipart>=0.0.6
 python-dotenv>=1.0.0
-
-# HTTP Client
-httpx>=0.25.0
