@@ -19,8 +19,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Any
 from processor import FileProcessor
 
-# 병렬 처리 최적화: CPU 코어 수의 2배 (I/O 바운드 작업에 최적)
-MAX_WORKERS = min(32, (os.cpu_count() or 4) * 2)
+# 병렬 처리 설정
+# - 로컬 변환 (DOCX, HWPX 등): CPU 코어 수 기반
+# - API 변환 (이미지 PDF): Upstage 권장사항 - 동시 요청 금지, 순차 처리만
+MAX_WORKERS_LOCAL = min(8, (os.cpu_count() or 4))
+MAX_WORKERS_API = 1  # Upstage: "send images one at a time in series" (동시 요청 시 429 에러)
 
 # 지원 파일 확장자
 SUPPORTED_EXTENSIONS = (
@@ -102,10 +105,14 @@ def main():
             emit_message("warning", msg="변환할 파일이 없습니다")
             return 0
 
+        # 워커 수 결정 (이미지 PDF가 있으면 API 제한 적용)
+        has_pdf = any(f.lower().endswith('.pdf') for f in tasks)
+        workers = MAX_WORKERS_API if has_pdf else MAX_WORKERS_LOCAL
+
         # 초기화 메시지
         emit_message("init",
             total=len(tasks),
-            workers=MAX_WORKERS,
+            workers=workers,
             output_folder=output_folder
         )
 
@@ -120,7 +127,7 @@ def main():
         start_time = time.time()
 
         # 병렬 처리 실행
-        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        with ThreadPoolExecutor(max_workers=workers) as executor:
             # 작업 제출
             future_to_file = {
                 executor.submit(processor.process, filepath): filepath

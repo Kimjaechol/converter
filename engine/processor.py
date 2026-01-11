@@ -41,13 +41,23 @@ try:
 except ImportError:
     HAS_ADMIN_CONFIG = False
 
+# Rate Limiter (적응형 Rate Limit 학습)
+try:
+    from rate_limiter import get_rate_limiter
+    HAS_RATE_LIMITER = True
+except ImportError:
+    HAS_RATE_LIMITER = False
+
 
 class FileProcessor:
     """하이브리드 문서 처리기"""
 
     # Upstage API 설정
     UPSTAGE_API_URL = "https://api.upstage.ai/v1/document-ai/document-parse"
-    MAX_PDF_PAGES_PER_REQUEST = 10  # 대용량 PDF 분할 단위
+    MAX_PDF_PAGES_PER_REQUEST = 10  # Upstage 권장: 최대 10페이지
+    MAX_FILE_SIZE_MB = 50  # 최대 파일 크기 (MB)
+    # 429 에러 발생 시 재시도 대기 시간 (초) - 충분히 길게
+    RATE_LIMIT_RETRY_DELAYS = [10, 30, 60, 120, 180]  # 10초, 30초, 1분, 2분, 3분
 
     def __init__(self, output_folder: str,
                  generate_clean_html: bool = True,
@@ -87,6 +97,12 @@ class FileProcessor:
             self.credit_manager = get_credit_manager()
         else:
             self.credit_manager = None
+
+        # Rate Limiter 초기화 (적응형 Rate Limit 학습)
+        if HAS_RATE_LIMITER:
+            self.rate_limiter = get_rate_limiter()
+        else:
+            self.rate_limiter = None
 
     def process(self, file_path: str) -> Dict[str, Any]:
         """
@@ -762,11 +778,24 @@ class FileProcessor:
         """
         이미지 PDF를 Upstage API로 변환
 
-        대용량 PDF는 분할 처리
+        Upstage Document Parse API 제한사항:
+        - 최대 10페이지/요청 (대용량은 분할 필수)
+        - 파일 크기 제한 (약 50MB)
+        - Rate Limit 존재 (연속 요청 시 429 에러)
+
         크레딧 시스템: 1페이지당 55원 (부가세 포함)
         """
+        import time as time_module
+        import tempfile
+        import shutil
+
         if not self.api_key:
             return "<p>Upstage API 키가 필요합니다. 이미지 PDF는 OCR이 필요합니다.</p>"
+
+        # 파일 크기 확인
+        file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
+        if file_size_mb > self.MAX_FILE_SIZE_MB:
+            return f"<p>파일 크기가 너무 큽니다: {file_size_mb:.1f}MB (최대 {self.MAX_FILE_SIZE_MB}MB)</p>"
 
         try:
             from PyPDF2 import PdfReader, PdfWriter
@@ -775,8 +804,14 @@ class FileProcessor:
             return self._call_upstage_api(file_path)
 
         # PDF 페이지 수 확인
-        reader = PdfReader(file_path)
-        total_pages = len(reader.pages)
+        try:
+            reader = PdfReader(file_path)
+            total_pages = len(reader.pages)
+        except Exception as e:
+            return f"<p>PDF 파일을 읽을 수 없습니다: {str(e)}</p>"
+
+        if total_pages == 0:
+            return "<p>빈 PDF 파일입니다.</p>"
 
         # 크레딧 확인 (크레딧 시스템이 있는 경우)
         if self.credit_manager:
@@ -786,24 +821,28 @@ class FileProcessor:
 
         filename = os.path.basename(file_path)
 
+        # 10페이지 이하는 그대로 처리
         if total_pages <= self.MAX_PDF_PAGES_PER_REQUEST:
-            # 작은 파일은 그대로 처리
             result = self._call_upstage_api(file_path)
 
             # 성공 시 크레딧 차감
-            if self.credit_manager and result and not result.startswith("<p>API"):
+            if self.credit_manager and result and not result.startswith("<p>"):
                 self.credit_manager.deduct_credits(total_pages, filename)
 
             return result
 
-        # 대용량 파일 분할 처리
+        # === 대용량 파일 분할 처리 (10페이지씩) ===
         html_parts = []
-        temp_dir = os.path.join(os.path.dirname(file_path), '.temp_split')
-        os.makedirs(temp_dir, exist_ok=True)
         pages_processed = 0
+        temp_files = []  # 임시 파일 목록 관리
+
+        # 시스템 임시 디렉토리 사용 (Windows 호환성)
+        temp_dir = tempfile.mkdtemp(prefix='lawpro_pdf_')
 
         try:
-            for start_page in range(0, total_pages, self.MAX_PDF_PAGES_PER_REQUEST):
+            total_chunks = (total_pages + self.MAX_PDF_PAGES_PER_REQUEST - 1) // self.MAX_PDF_PAGES_PER_REQUEST
+
+            for chunk_idx, start_page in enumerate(range(0, total_pages, self.MAX_PDF_PAGES_PER_REQUEST)):
                 end_page = min(start_page + self.MAX_PDF_PAGES_PER_REQUEST, total_pages)
                 chunk_pages = end_page - start_page
 
@@ -812,34 +851,70 @@ class FileProcessor:
                 for i in range(start_page, end_page):
                     writer.add_page(reader.pages[i])
 
-                temp_path = os.path.join(temp_dir, f'part_{start_page}_{end_page}.pdf')
+                temp_path = os.path.join(temp_dir, f'chunk_{chunk_idx:03d}.pdf')
                 with open(temp_path, 'wb') as f:
                     writer.write(f)
+                temp_files.append(temp_path)
 
-                # API 호출
-                part_html = self._call_upstage_api(temp_path)
-                html_parts.append(f'<!-- Pages {start_page + 1}-{end_page} -->')
-                html_parts.append(part_html)
-                pages_processed += chunk_pages
+                # API 호출 (429 발생 시 내부에서 충분히 대기 후 재시도)
+                try:
+                    part_html = self._call_upstage_api(temp_path)
 
-                # 임시 파일 삭제
-                os.remove(temp_path)
+                    # 에러 응답 체크
+                    if part_html.startswith("<p>API") or part_html.startswith("<p>오류"):
+                        html_parts.append(f'<!-- Pages {start_page + 1}-{end_page}: ERROR -->')
+                        html_parts.append(part_html)
+                    else:
+                        html_parts.append(f'<!-- Pages {start_page + 1}-{end_page} -->')
+                        html_parts.append(part_html)
+                        pages_processed += chunk_pages
 
-            # 성공 시 크레딧 차감 (전체 페이지)
+                except Exception as e:
+                    html_parts.append(f'<!-- Pages {start_page + 1}-{end_page}: FAILED -->')
+                    html_parts.append(f'<p>페이지 {start_page + 1}-{end_page} 변환 실패: {str(e)}</p>')
+
+            # 성공 시 크레딧 차감 (처리된 페이지만)
             if self.credit_manager and pages_processed > 0:
                 self.credit_manager.deduct_credits(pages_processed, filename)
 
         finally:
-            # 임시 디렉토리 정리
+            # 임시 파일 정리 (지연 삭제로 Windows 파일 잠금 문제 해결)
+            time_module.sleep(0.5)  # 파일 핸들 해제 대기
             try:
-                os.rmdir(temp_dir)
-            except:
-                pass
+                shutil.rmtree(temp_dir, ignore_errors=True)
+            except Exception:
+                pass  # 정리 실패해도 계속 진행
+
+        if not html_parts:
+            return "<p>PDF 변환에 실패했습니다.</p>"
 
         return '\n'.join(html_parts)
 
     def _call_upstage_api(self, file_path: str) -> str:
-        """Upstage Document Parse API 호출"""
+        """
+        Upstage Document Parse API 호출
+
+        적응형 Rate Limit 시스템:
+        - 요청 전: 쿨다운 상태 확인 → 잔여 시간만 대기
+        - 성공 시: 쿨다운 리셋, 요청 빈도 기록 (학습 데이터)
+        - 429 시: 쿨다운 설정, 요청 빈도 분석 및 Rate Limit 재학습
+
+        쿨다운 시스템:
+        - 429 발생 시 쿨다운 설정 (10초→30초→1분→2분→3분)
+        - 다음 요청 시 잔여 시간만 대기 (블로킹 최소화)
+        - 사용자가 프로세스 취소하면 자동 중단
+        - 대기 중 아무 요청 없으면 다음 요청 시점에 시도
+
+        에러 핸들링:
+        - 429 Too Many Requests: 쿨다운 설정 후 재시도 (성공까지 반복)
+        - 400 Bad Request: 파일 형식/크기 문제 (재시도 안함)
+        - 500 Server Error: 대기 후 재시도 (최대 3회)
+        """
+        import sys
+        import time as time_module
+
+        filename = os.path.basename(file_path)
+
         headers = {
             "Authorization": f"Bearer {self.api_key}"
         }
@@ -851,27 +926,125 @@ class FileProcessor:
             "coordinates": "false"
         }
 
-        with open(file_path, "rb") as f:
-            files = {"document": (os.path.basename(file_path), f)}
+        other_retry_count = 0
+        max_other_retries = 3
 
-            response = requests.post(
-                self.UPSTAGE_API_URL,
-                headers=headers,
-                data=data,
-                files=files,
-                timeout=300  # 5분 타임아웃
-            )
+        while True:
+            try:
+                # === 쿨다운 체크 (잔여 시간만 대기) ===
+                if self.rate_limiter:
+                    is_cooldown, remaining = self.rate_limiter.check_cooldown()
+                    if is_cooldown and remaining > 0:
+                        # 잔여 시간만 대기 (전체 대기 시간 아님)
+                        log_msg = self.rate_limiter.get_cooldown_wait_log(remaining, filename)
+                        print(log_msg, file=sys.stderr, flush=True)
+                        time_module.sleep(remaining)
 
-        response.raise_for_status()
-        result = response.json()
+                    # Rate Limit 체크 (학습된 한도 기반 throttling)
+                    should_wait, wait_sec = self.rate_limiter.should_wait()
+                    if should_wait:
+                        time_module.sleep(wait_sec)
 
-        # HTML 추출
-        if 'content' in result and 'html' in result['content']:
-            return result['content']['html']
-        elif 'html' in result:
-            return result['html']
-        else:
-            return f"<p>API 응답 형식 오류: {result}</p>"
+                    # 요청 기록
+                    self.rate_limiter.record_request()
+
+                with open(file_path, "rb") as f:
+                    files = {"document": (filename, f)}
+
+                    response = requests.post(
+                        self.UPSTAGE_API_URL,
+                        headers=headers,
+                        data=data,
+                        files=files,
+                        timeout=300
+                    )
+
+                # === 429 Too Many Requests ===
+                if response.status_code == 429:
+                    if self.rate_limiter:
+                        # Rate Limit 분석 및 학습
+                        analysis = self.rate_limiter.record_429_error()
+                        log_msg = self.rate_limiter.get_429_analysis_log(analysis)
+                        print(log_msg, file=sys.stderr, flush=True)
+
+                        # 쿨다운 설정 (블로킹 없이 상태만 기록)
+                        wait_time, retry_count = self.rate_limiter.set_cooldown(filename)
+                        log_msg = self.rate_limiter.get_cooldown_log(wait_time, retry_count, filename)
+                        print(log_msg, file=sys.stderr, flush=True)
+
+                        # 쿨다운 시간만큼 대기 후 재시도
+                        # (사용자가 취소하면 여기서 프로세스 종료됨)
+                        time_module.sleep(wait_time)
+                        continue
+                    else:
+                        # Rate Limiter 없으면 고정 대기
+                        time_module.sleep(30)
+                        continue
+
+                # === 400 Bad Request ===
+                if response.status_code == 400:
+                    try:
+                        error_detail = response.json()
+                        error_msg = error_detail.get('message', error_detail.get('error', str(error_detail)))
+                    except:
+                        error_msg = response.text[:200]
+                    return f"<p>API 요청 오류 (400): {error_msg}</p>"
+
+                # === 500 Server Error ===
+                if response.status_code >= 500:
+                    other_retry_count += 1
+                    if other_retry_count <= max_other_retries:
+                        time_module.sleep(other_retry_count * 10)
+                        continue
+                    return f"<p>API 서버 오류 ({response.status_code}): 재시도 {max_other_retries}회 실패</p>"
+
+                response.raise_for_status()
+                result = response.json()
+
+                # === 성공 ===
+                if self.rate_limiter:
+                    # 쿨다운 리셋 (성공했으므로)
+                    self.rate_limiter.reset_cooldown()
+                    # Rate Limit 학습 데이터 기록
+                    self.rate_limiter.record_success()
+
+                # HTML 추출
+                if 'content' in result and 'html' in result['content']:
+                    return result['content']['html']
+                elif 'html' in result:
+                    return result['html']
+                elif 'text' in result:
+                    return f"<p>{result['text']}</p>"
+                else:
+                    return f"<p>API 응답 형식 오류: {str(result)[:500]}</p>"
+
+            except requests.exceptions.Timeout:
+                other_retry_count += 1
+                if other_retry_count <= max_other_retries:
+                    time_module.sleep(10)
+                    continue
+                return "<p>API 요청 타임아웃 (5분 초과)</p>"
+
+            except requests.exceptions.ConnectionError:
+                other_retry_count += 1
+                if other_retry_count <= max_other_retries:
+                    time_module.sleep(5)
+                    continue
+                return "<p>API 연결 오류: 네트워크 확인 필요</p>"
+
+            except requests.exceptions.HTTPError as e:
+                other_retry_count += 1
+                if other_retry_count <= max_other_retries:
+                    time_module.sleep(5)
+                    continue
+                return f"<p>API HTTP 오류: {str(e)}</p>"
+
+            except Exception as e:
+                other_retry_count += 1
+                if other_retry_count <= max_other_retries:
+                    time_module.sleep(3)
+                    continue
+                return f"<p>API 오류: {str(e)}</p>"
 
     # ============================================================
     # HTML 저장

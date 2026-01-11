@@ -426,8 +426,18 @@ HTML 태그는 그대로 유지하고 텍스트 오류만 수정합니다.
                 'raw_response': ''
             }
 
+        except json.JSONDecodeError as e:
+            self._emit_error(f"JSON 파싱 오류: {str(e)} - 학습 패턴 파일을 확인하세요")
+            return {
+                'html': content,
+                'confirmed_corrections': [],
+                'uncertain_corrections': [],
+                'raw_response': '',
+                'error': f"JSON 파싱 오류: {str(e)}"
+            }
         except Exception as e:
-            self._emit_error(f"Gemini API 오류: {str(e)}")
+            error_type = type(e).__name__
+            self._emit_error(f"Gemini API 오류 ({error_type}): {str(e)}")
             return {
                 'html': content,
                 'confirmed_corrections': [],

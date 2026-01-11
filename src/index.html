@@ -330,48 +330,48 @@
                     </button>
                 </div>
 
-                <!-- 진행 상황 -->
+                <!-- 진행 상황 & 결과 요약 -->
                 <div id="progressSection" class="mt-6 hidden">
                     <div class="flex items-center justify-between mb-2">
                         <span class="text-sm text-gray-400">진행 상황</span>
                         <span id="progressText" class="text-sm text-gray-300">0 / 0</span>
                     </div>
-                    <div class="w-full bg-gray-700 rounded-full h-2">
+                    <div class="w-full bg-gray-700 rounded-full h-2 mb-4">
                         <div id="progressBar" class="bg-primary-500 h-2 rounded-full transition-all" style="width: 0%"></div>
                     </div>
-                </div>
 
-                <!-- 로그 영역 -->
-                <div class="mt-6 flex-1 flex flex-col min-h-0">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-sm text-gray-400">변환 로그</span>
-                        <button id="clearLog" class="text-xs text-gray-500 hover:text-gray-300">지우기</button>
-                    </div>
-                    <div id="logArea" class="flex-1 bg-gray-800 rounded-lg p-4 overflow-y-auto font-mono text-sm space-y-1 min-h-[200px]">
-                        <p class="text-gray-500">대기 중...</p>
-                    </div>
-                </div>
-
-                <!-- 결과 요약 -->
-                <div id="resultSummary" class="mt-4 p-4 bg-gray-800 rounded-lg hidden">
-                    <div class="grid grid-cols-4 gap-4 text-center">
-                        <div>
-                            <p class="text-2xl font-bold text-green-400" id="resultSuccess">0</p>
-                            <p class="text-sm text-gray-400">성공</p>
-                        </div>
-                        <div>
-                            <p class="text-2xl font-bold text-red-400" id="resultFail">0</p>
-                            <p class="text-sm text-gray-400">실패</p>
-                        </div>
-                        <div>
-                            <p class="text-2xl font-bold text-blue-400" id="resultTime">0s</p>
-                            <p class="text-sm text-gray-400">소요 시간</p>
-                        </div>
-                        <div>
+                    <!-- 결과 요약 (진행 바 바로 아래) -->
+                    <div id="resultSummary" class="p-4 bg-gray-800 rounded-lg hidden">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-6">
+                                <div class="text-center">
+                                    <p class="text-xl font-bold text-green-400" id="resultSuccess">0</p>
+                                    <p class="text-xs text-gray-400">성공</p>
+                                </div>
+                                <div class="text-center">
+                                    <p class="text-xl font-bold text-red-400" id="resultFail">0</p>
+                                    <p class="text-xs text-gray-400">실패</p>
+                                </div>
+                                <div class="text-center">
+                                    <p class="text-xl font-bold text-blue-400" id="resultTime">0s</p>
+                                    <p class="text-xs text-gray-400">소요 시간</p>
+                                </div>
+                            </div>
                             <button id="openOutputFolder" class="px-4 py-2 bg-primary-600 hover:bg-primary-500 rounded-lg text-sm transition-colors">
                                 결과 폴더 열기
                             </button>
                         </div>
+                    </div>
+                </div>
+
+                <!-- 로그 영역 -->
+                <div class="mt-4 flex-1 flex flex-col min-h-0">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm text-gray-400">변환 로그</span>
+                        <button id="clearLog" class="text-xs text-gray-500 hover:text-gray-300">지우기</button>
+                    </div>
+                    <div id="logArea" class="flex-1 bg-gray-800 rounded-lg p-4 overflow-y-auto font-mono text-xs space-y-1" style="min-height: 150px; max-height: 300px;">
+                        <p class="text-gray-500">대기 중...</p>
                     </div>
                 </div>
             </section>

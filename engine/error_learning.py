@@ -213,6 +213,20 @@ class PatternStore:
                     for pattern_data in data.get('patterns', []):
                         pattern = ErrorPattern.from_dict(pattern_data)
                         self.patterns[pattern.pattern_id] = pattern
+            except json.JSONDecodeError as e:
+                print(f"[PatternStore] JSON 파싱 오류: {e}")
+                print(f"[PatternStore] 파일 경로: {self.file_path}")
+                print(f"[PatternStore] 파일을 초기화합니다...")
+                # 손상된 파일 백업 후 초기화
+                backup_path = str(self.file_path) + '.corrupted'
+                try:
+                    import shutil
+                    shutil.copy(self.file_path, backup_path)
+                    print(f"[PatternStore] 손상된 파일 백업: {backup_path}")
+                except:
+                    pass
+                self.patterns = {}
+                self._save()  # 빈 파일로 초기화
             except Exception as e:
                 print(f"[PatternStore] 로드 실패: {e}")
 
