@@ -86,7 +86,17 @@ const elements = {
     // 상태 표시
     pythonStatus: document.getElementById('pythonStatus'),
     claudeStatus: document.getElementById('claudeStatus'),
-    appVersion: document.getElementById('appVersion')
+    appVersion: document.getElementById('appVersion'),
+
+    // 크레딧 관련
+    creditBalance: document.getElementById('creditBalance'),
+    creditAdminBadge: document.getElementById('creditAdminBadge'),
+    buyCreditsBtn: document.getElementById('buyCreditsBtn'),
+    creditModal: document.getElementById('creditModal'),
+    closeCreditModal: document.getElementById('closeCreditModal'),
+    userEmailInput: document.getElementById('userEmailInput'),
+    saveUserEmail: document.getElementById('saveUserEmail'),
+    modalCreditBalance: document.getElementById('modalCreditBalance')
 };
 
 // ============================================================
@@ -104,6 +114,9 @@ async function init() {
 
     // Claude 연결 상태 확인
     await checkClaudeStatus();
+
+    // 크레딧 잔액 로드
+    await loadCreditBalance();
 
     // 이벤트 리스너 등록
     setupEventListeners();
@@ -701,6 +714,121 @@ function addReviewLog(type, message) {
 }
 
 // ============================================================
+// 크레딧 관리
+// ============================================================
+async function loadCreditBalance() {
+    try {
+        // 사용자 이메일 로드
+        const email = await window.lawpro.getUserEmail();
+        if (email) {
+            elements.userEmailInput.value = email;
+        }
+
+        // 잔액 로드
+        const balance = await window.lawpro.getCreditBalance();
+        updateCreditDisplay(balance);
+    } catch (e) {
+        console.error('크레딧 로드 실패:', e);
+    }
+}
+
+function updateCreditDisplay(balance) {
+    // 사이드바 잔액
+    if (balance.is_admin) {
+        elements.creditBalance.textContent = '무제한';
+        elements.creditAdminBadge.classList.remove('hidden');
+        elements.buyCreditsBtn.classList.add('hidden');
+    } else {
+        elements.creditBalance.textContent = `${balance.credits.toLocaleString()}원`;
+        elements.creditAdminBadge.classList.add('hidden');
+        elements.buyCreditsBtn.classList.remove('hidden');
+    }
+
+    // 모달 잔액
+    if (elements.modalCreditBalance) {
+        if (balance.is_admin) {
+            elements.modalCreditBalance.textContent = '무제한 (관리자)';
+        } else {
+            elements.modalCreditBalance.textContent = `${balance.credits.toLocaleString()}원`;
+        }
+    }
+}
+
+function openCreditModal() {
+    elements.creditModal.classList.remove('hidden');
+    loadCreditBalance();
+}
+
+function closeCreditModal() {
+    elements.creditModal.classList.add('hidden');
+}
+
+async function saveUserEmail() {
+    const email = elements.userEmailInput.value.trim();
+    if (!email) {
+        alert('이메일을 입력해주세요');
+        return;
+    }
+
+    try {
+        const result = await window.lawpro.setUserEmail(email);
+        if (result.is_admin) {
+            alert('관리자 계정으로 인식되었습니다. 무제한 사용 가능합니다.');
+        } else {
+            alert('이메일이 저장되었습니다.');
+        }
+        await loadCreditBalance();
+    } catch (e) {
+        alert('이메일 저장 실패: ' + e.message);
+    }
+}
+
+async function purchaseCredits(packageId) {
+    try {
+        // 테스트 모드: 바로 크레딧 추가
+        const result = await window.lawpro.addCredits(packageId);
+        if (result.success) {
+            alert(`크레딧 충전 완료: ${result.credits_added.toLocaleString()}원`);
+            await loadCreditBalance();
+        } else {
+            alert('충전 실패: ' + result.message);
+        }
+    } catch (e) {
+        alert('충전 오류: ' + e.message);
+    }
+}
+
+// 크레딧 이벤트 리스너 설정
+function setupCreditEventListeners() {
+    // 모달 열기/닫기
+    elements.buyCreditsBtn?.addEventListener('click', openCreditModal);
+    elements.closeCreditModal?.addEventListener('click', closeCreditModal);
+
+    // 모달 외부 클릭으로 닫기
+    elements.creditModal?.addEventListener('click', (e) => {
+        if (e.target === elements.creditModal) {
+            closeCreditModal();
+        }
+    });
+
+    // 이메일 저장
+    elements.saveUserEmail?.addEventListener('click', saveUserEmail);
+
+    // 패키지 구매
+    document.querySelectorAll('.credit-package').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const packageId = btn.dataset.package;
+            if (confirm('해당 크레딧 패키지를 구매하시겠습니까?')) {
+                purchaseCredits(packageId);
+            }
+        });
+    });
+}
+
+// ============================================================
 // 앱 시작
 // ============================================================
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+    init();
+    setupCreditEventListeners();
+});

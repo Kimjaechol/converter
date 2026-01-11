@@ -222,8 +222,11 @@ def batch_review(folder_path: str, api_key: str, model_name: str = "gpt-4o"):
 
     os.makedirs(output_dir, exist_ok=True)
 
-    # HTML 파일 목록
-    html_files = glob(os.path.join(input_dir, "*.html"))
+    # HTML 파일 목록 (새 구조: Converted_HTML/{doc_name}/view.html)
+    html_files = glob(os.path.join(input_dir, "*", "view.html"))
+
+    # 기존 구조도 지원 (Converted_HTML/*.html)
+    html_files.extend(glob(os.path.join(input_dir, "*.html")))
 
     if not html_files:
         print(json.dumps({

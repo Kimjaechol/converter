@@ -26,6 +26,7 @@ const store = new Store({
         upstageKey: '',
         geminiKey: '',
         openaiKey: '',
+        userEmail: '',
         lastFolder: '',
         claudeConnected: false,
         geminiModel: 'flash-2.0',
@@ -657,6 +658,155 @@ ipcMain.handle('install-packages', async () => {
 
         installProcess.on('error', (err) => {
             reject(err);
+        });
+    });
+});
+
+// ============================================================
+// IPC 핸들러: 크레딧 관리
+// ============================================================
+ipcMain.handle('set-user-email', async (event, email) => {
+    return new Promise((resolve, reject) => {
+        const pythonCmd = getPythonCommand();
+        if (!pythonCmd) {
+            reject(new Error('Python 3이 설치되어 있지 않습니다.'));
+            return;
+        }
+
+        const scriptPath = path.join(enginePath, 'credit_manager.py');
+        const process = spawn(pythonCmd, [scriptPath, 'set-email', email], {
+            cwd: enginePath,
+            env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+        });
+
+        let output = '';
+        process.stdout.on('data', (data) => { output += data.toString(); });
+        process.stderr.on('data', (data) => { output += data.toString(); });
+
+        process.on('close', (code) => {
+            try {
+                const result = JSON.parse(output);
+                store.set('userEmail', email);
+                resolve(result);
+            } catch (e) {
+                resolve({ success: false, error: output });
+            }
+        });
+    });
+});
+
+ipcMain.handle('get-user-email', async () => {
+    return store.get('userEmail', '');
+});
+
+ipcMain.handle('get-credit-balance', async () => {
+    return new Promise((resolve, reject) => {
+        const pythonCmd = getPythonCommand();
+        if (!pythonCmd) {
+            resolve({ credits: 0, is_admin: false, error: 'Python not found' });
+            return;
+        }
+
+        const scriptPath = path.join(enginePath, 'credit_manager.py');
+        const creditProcess = spawn(pythonCmd, [scriptPath, 'balance'], {
+            cwd: enginePath,
+            env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+        });
+
+        let output = '';
+        creditProcess.stdout.on('data', (data) => { output += data.toString(); });
+
+        creditProcess.on('close', (code) => {
+            try {
+                const result = JSON.parse(output);
+                resolve(result);
+            } catch (e) {
+                resolve({ credits: 0, is_admin: false });
+            }
+        });
+    });
+});
+
+ipcMain.handle('get-credit-packages', async () => {
+    return new Promise((resolve, reject) => {
+        const pythonCmd = getPythonCommand();
+        if (!pythonCmd) {
+            resolve({ packages: [] });
+            return;
+        }
+
+        const scriptPath = path.join(enginePath, 'credit_manager.py');
+        const creditProcess = spawn(pythonCmd, [scriptPath, 'packages'], {
+            cwd: enginePath,
+            env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+        });
+
+        let output = '';
+        creditProcess.stdout.on('data', (data) => { output += data.toString(); });
+
+        creditProcess.on('close', (code) => {
+            try {
+                const result = JSON.parse(output);
+                resolve(result);
+            } catch (e) {
+                resolve({ packages: [] });
+            }
+        });
+    });
+});
+
+ipcMain.handle('add-credits', async (event, packageId, transactionId) => {
+    return new Promise((resolve, reject) => {
+        const pythonCmd = getPythonCommand();
+        if (!pythonCmd) {
+            reject(new Error('Python 3이 설치되어 있지 않습니다.'));
+            return;
+        }
+
+        const scriptPath = path.join(enginePath, 'credit_manager.py');
+        const creditProcess = spawn(pythonCmd, [scriptPath, 'add', packageId], {
+            cwd: enginePath,
+            env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+        });
+
+        let output = '';
+        creditProcess.stdout.on('data', (data) => { output += data.toString(); });
+
+        creditProcess.on('close', (code) => {
+            try {
+                const result = JSON.parse(output);
+                resolve(result);
+            } catch (e) {
+                resolve({ success: false, error: output });
+            }
+        });
+    });
+});
+
+ipcMain.handle('check-credits', async (event, pageCount) => {
+    return new Promise((resolve, reject) => {
+        const pythonCmd = getPythonCommand();
+        if (!pythonCmd) {
+            resolve({ has_credits: false, message: 'Python not found' });
+            return;
+        }
+
+        const scriptPath = path.join(enginePath, 'credit_manager.py');
+        const creditProcess = spawn(pythonCmd, [scriptPath, 'check', String(pageCount)], {
+            cwd: enginePath,
+            env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+        });
+
+        let output = '';
+        creditProcess.stdout.on('data', (data) => { output += data.toString(); });
+
+        creditProcess.on('close', (code) => {
+            try {
+                const result = JSON.parse(output);
+                resolve(result);
+            } catch (e) {
+                resolve({ has_credits: false });
+            }
         });
     });
 });
