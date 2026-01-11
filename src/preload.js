@@ -147,6 +147,21 @@ contextBridge.exposeInMainWorld('lawpro', {
     },
 
     // ========================================
+    // 에디터 파일 작업
+    // ========================================
+    editorOpenFile: () =>
+        ipcRenderer.invoke('editor-open-file'),
+
+    editorReadFile: (filePath) =>
+        ipcRenderer.invoke('editor-read-file', filePath),
+
+    editorSaveFile: (filePath, content) =>
+        ipcRenderer.invoke('editor-save-file', filePath, content),
+
+    editorSaveAs: (content, defaultName) =>
+        ipcRenderer.invoke('editor-save-as', content, defaultName),
+
+    // ========================================
     // 크레딧 관리
     // ========================================
     setUserEmail: (email) =>

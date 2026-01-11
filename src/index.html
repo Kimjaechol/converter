@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; frame-src 'self' blob:;">
     <title>LawPro Fast Converter</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
     <script>
         tailwind.config = {
@@ -106,6 +107,13 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                     </svg>
                     AI 검수
+                </button>
+
+                <button id="navEditor" class="nav-btn w-full flex items-center px-4 py-3 rounded-lg text-left transition-colors hover:bg-gray-700 text-gray-300">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                    </svg>
+                    에디터
                 </button>
 
                 <button id="navSettings" class="nav-btn w-full flex items-center px-4 py-3 rounded-lg text-left transition-colors hover:bg-gray-700 text-gray-300">
@@ -367,6 +375,143 @@
                     <!-- 검수 로그 -->
                     <div class="flex-1 bg-gray-900 rounded-lg p-4 overflow-y-auto font-mono text-sm min-h-[150px]" id="reviewLogArea">
                         <p class="text-gray-500">검수 로그가 여기에 표시됩니다...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 페이지: 에디터 -->
+            <section id="pageEditor" class="page flex-1 flex flex-col p-6 hidden overflow-hidden">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h2 class="text-2xl font-bold">문서 에디터</h2>
+                        <p class="text-gray-400 mt-1">HTML 및 Markdown 문서를 보고 편집합니다</p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <button id="editorOpenFile" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors flex items-center">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"></path>
+                            </svg>
+                            파일 열기
+                        </button>
+                        <button id="editorSaveFile" class="px-4 py-2 bg-primary-600 hover:bg-primary-500 rounded-lg text-sm transition-colors flex items-center disabled:opacity-50" disabled>
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
+                            </svg>
+                            저장
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 에디터 탭 -->
+                <div class="flex border-b border-gray-700 mb-4">
+                    <button id="tabHtml" class="editor-tab px-6 py-3 text-sm font-medium border-b-2 border-primary-500 text-primary-400">
+                        HTML 에디터
+                    </button>
+                    <button id="tabMarkdown" class="editor-tab px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-200">
+                        Markdown 에디터
+                    </button>
+                    <div class="flex-1"></div>
+                    <span id="editorFileName" class="text-sm text-gray-500 self-center mr-4">파일을 선택하세요</span>
+                </div>
+
+                <!-- HTML 에디터 -->
+                <div id="htmlEditorPanel" class="flex-1 flex flex-col min-h-0">
+                    <!-- 툴바 -->
+                    <div class="bg-gray-800 rounded-t-lg border border-gray-700 border-b-0 p-2 flex flex-wrap items-center gap-1">
+                        <!-- 뷰 전환 -->
+                        <div class="flex border-r border-gray-600 pr-2 mr-2">
+                            <button id="btnVisualView" class="px-3 py-1 text-xs bg-primary-600 text-white rounded-l">비주얼</button>
+                            <button id="btnCodeView" class="px-3 py-1 text-xs bg-gray-700 text-gray-300 rounded-r hover:bg-gray-600">코드</button>
+                        </div>
+
+                        <!-- 텍스트 서식 -->
+                        <select id="fontSizeSelect" class="px-2 py-1 text-xs bg-gray-700 border border-gray-600 rounded text-gray-200">
+                            <option value="">크기</option>
+                            <option value="1">아주 작게</option>
+                            <option value="2">작게</option>
+                            <option value="3">보통</option>
+                            <option value="4">크게</option>
+                            <option value="5">아주 크게</option>
+                            <option value="6">매우 크게</option>
+                            <option value="7">최대</option>
+                        </select>
+
+                        <button id="btnBold" class="w-8 h-8 flex items-center justify-center bg-gray-700 hover:bg-gray-600 rounded text-gray-200 font-bold" title="굵게">B</button>
+                        <button id="btnItalic" class="w-8 h-8 flex items-center justify-center bg-gray-700 hover:bg-gray-600 rounded text-gray-200 italic" title="기울임">I</button>
+                        <button id="btnUnderline" class="w-8 h-8 flex items-center justify-center bg-gray-700 hover:bg-gray-600 rounded text-gray-200 underline" title="밑줄">U</button>
+
+                        <div class="w-px h-6 bg-gray-600 mx-1"></div>
+
+                        <!-- 정렬 -->
+                        <button id="btnAlignLeft" class="w-8 h-8 flex items-center justify-center bg-gray-700 hover:bg-gray-600 rounded" title="왼쪽 정렬">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 5A.75.75 0 012.75 9h9.5a.75.75 0 010 1.5h-9.5A.75.75 0 012 9.75zm0 5A.75.75 0 012.75 14h14.5a.75.75 0 010 1.5H2.75a.75.75 0 01-.75-.75z"/></svg>
+                        </button>
+                        <button id="btnAlignCenter" class="w-8 h-8 flex items-center justify-center bg-gray-700 hover:bg-gray-600 rounded" title="가운데 정렬">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm2.5 5a.75.75 0 01.75-.75h9.5a.75.75 0 010 1.5h-9.5a.75.75 0 01-.75-.75zm-2.5 5A.75.75 0 012.75 14h14.5a.75.75 0 010 1.5H2.75a.75.75 0 01-.75-.75z"/></svg>
+                        </button>
+                        <button id="btnAlignRight" class="w-8 h-8 flex items-center justify-center bg-gray-700 hover:bg-gray-600 rounded" title="오른쪽 정렬">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm5 5a.75.75 0 01.75-.75h9.5a.75.75 0 010 1.5h-9.5a.75.75 0 01-.75-.75zm-5 5A.75.75 0 012.75 14h14.5a.75.75 0 010 1.5H2.75a.75.75 0 01-.75-.75z"/></svg>
+                        </button>
+
+                        <div class="w-px h-6 bg-gray-600 mx-1"></div>
+
+                        <!-- 표 편집 -->
+                        <span class="text-xs text-gray-400 mx-1">표:</span>
+                        <button id="btnAddRowAbove" class="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded text-gray-200" title="위에 행 추가">↑행</button>
+                        <button id="btnAddRowBelow" class="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded text-gray-200" title="아래에 행 추가">↓행</button>
+                        <button id="btnAddColLeft" class="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded text-gray-200" title="왼쪽에 열 추가">←열</button>
+                        <button id="btnAddColRight" class="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded text-gray-200" title="오른쪽에 열 추가">→열</button>
+                        <button id="btnDeleteRow" class="px-2 py-1 text-xs bg-red-700 hover:bg-red-600 rounded text-gray-200" title="행 삭제">행삭제</button>
+                        <button id="btnDeleteCol" class="px-2 py-1 text-xs bg-red-700 hover:bg-red-600 rounded text-gray-200" title="열 삭제">열삭제</button>
+                        <button id="btnMergeCells" class="px-2 py-1 text-xs bg-blue-700 hover:bg-blue-600 rounded text-gray-200" title="셀 병합">병합</button>
+                        <button id="btnSplitCell" class="px-2 py-1 text-xs bg-blue-700 hover:bg-blue-600 rounded text-gray-200" title="셀 분할">분할</button>
+
+                        <div class="w-px h-6 bg-gray-600 mx-1"></div>
+
+                        <!-- 테두리 편집 -->
+                        <span class="text-xs text-gray-400 mx-1">테두리:</span>
+                        <button id="btnBorderTop" class="w-8 h-8 flex items-center justify-center bg-gray-700 hover:bg-gray-600 rounded text-gray-200 text-xs" title="위쪽 테두리">▲</button>
+                        <button id="btnBorderBottom" class="w-8 h-8 flex items-center justify-center bg-gray-700 hover:bg-gray-600 rounded text-gray-200 text-xs" title="아래쪽 테두리">▼</button>
+                        <button id="btnBorderLeft" class="w-8 h-8 flex items-center justify-center bg-gray-700 hover:bg-gray-600 rounded text-gray-200 text-xs" title="왼쪽 테두리">◀</button>
+                        <button id="btnBorderRight" class="w-8 h-8 flex items-center justify-center bg-gray-700 hover:bg-gray-600 rounded text-gray-200 text-xs" title="오른쪽 테두리">▶</button>
+                        <button id="btnBorderAll" class="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded text-gray-200" title="모든 테두리">전체</button>
+                        <button id="btnBorderNone" class="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded text-gray-200" title="테두리 없음">없음</button>
+                    </div>
+
+                    <!-- 에디터 영역 -->
+                    <div class="flex-1 flex gap-4 min-h-0">
+                        <!-- 비주얼 에디터 -->
+                        <div id="visualEditorWrapper" class="flex-1 flex flex-col min-w-0">
+                            <div id="visualEditor" class="flex-1 w-full bg-white text-gray-900 p-4 rounded-b-lg border border-gray-700 border-t-0 overflow-y-auto" contenteditable="true" style="min-height: 300px;"></div>
+                        </div>
+                        <!-- 코드 에디터 (숨김) -->
+                        <div id="codeEditorWrapper" class="flex-1 flex flex-col min-w-0 hidden">
+                            <textarea id="htmlCodeEditor" class="flex-1 w-full bg-gray-900 text-gray-100 font-mono text-sm p-4 rounded-b-lg border border-gray-700 border-t-0 focus:outline-none resize-none" placeholder="HTML 코드..."></textarea>
+                        </div>
+                        <!-- 미리보기 -->
+                        <div class="flex-1 flex flex-col min-w-0">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm text-gray-400">미리보기</span>
+                                <button id="htmlRefresh" class="text-xs text-gray-500 hover:text-gray-300">새로고침</button>
+                            </div>
+                            <iframe id="htmlPreview" class="flex-1 w-full bg-white rounded-lg border border-gray-700"></iframe>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Markdown 에디터 -->
+                <div id="markdownEditorPanel" class="flex-1 flex gap-4 min-h-0 hidden">
+                    <div class="flex-1 flex flex-col min-w-0">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm text-gray-400">Markdown 코드</span>
+                        </div>
+                        <textarea id="mdCodeEditor" class="flex-1 w-full bg-gray-900 text-gray-100 font-mono text-sm p-4 rounded-lg border border-gray-700 focus:border-primary-500 focus:outline-none resize-none" placeholder="Markdown을 여기에 입력하거나 파일을 열어주세요..."></textarea>
+                    </div>
+                    <div class="flex-1 flex flex-col min-w-0">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm text-gray-400">미리보기</span>
+                        </div>
+                        <div id="mdPreview" class="flex-1 w-full bg-gray-900 text-gray-100 p-4 rounded-lg border border-gray-700 overflow-y-auto prose prose-invert prose-sm max-w-none"></div>
                     </div>
                 </div>
             </section>
