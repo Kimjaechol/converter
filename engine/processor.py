@@ -838,8 +838,10 @@ class FileProcessor:
 
         return '\n'.join(html_parts)
 
-    def _call_upstage_api(self, file_path: str) -> str:
-        """Upstage Document Parse API 호출"""
+    def _call_upstage_api(self, file_path: str, max_retries: int = 3) -> str:
+        """Upstage Document Parse API 호출 (429 에러 시 재시도)"""
+        import time as time_module
+
         headers = {
             "Authorization": f"Bearer {self.api_key}"
         }
@@ -851,27 +853,54 @@ class FileProcessor:
             "coordinates": "false"
         }
 
-        with open(file_path, "rb") as f:
-            files = {"document": (os.path.basename(file_path), f)}
+        last_error = None
 
-            response = requests.post(
-                self.UPSTAGE_API_URL,
-                headers=headers,
-                data=data,
-                files=files,
-                timeout=300  # 5분 타임아웃
-            )
+        for attempt in range(max_retries):
+            try:
+                with open(file_path, "rb") as f:
+                    files = {"document": (os.path.basename(file_path), f)}
 
-        response.raise_for_status()
-        result = response.json()
+                    response = requests.post(
+                        self.UPSTAGE_API_URL,
+                        headers=headers,
+                        data=data,
+                        files=files,
+                        timeout=300  # 5분 타임아웃
+                    )
 
-        # HTML 추출
-        if 'content' in result and 'html' in result['content']:
-            return result['content']['html']
-        elif 'html' in result:
-            return result['html']
-        else:
-            return f"<p>API 응답 형식 오류: {result}</p>"
+                # 429 Too Many Requests - 대기 후 재시도
+                if response.status_code == 429:
+                    wait_time = (2 ** attempt) * 2  # 2초, 4초, 8초
+                    time_module.sleep(wait_time)
+                    continue
+
+                response.raise_for_status()
+                result = response.json()
+
+                # HTML 추출
+                if 'content' in result and 'html' in result['content']:
+                    return result['content']['html']
+                elif 'html' in result:
+                    return result['html']
+                else:
+                    return f"<p>API 응답 형식 오류: {result}</p>"
+
+            except requests.exceptions.HTTPError as e:
+                last_error = e
+                if response.status_code == 429:
+                    wait_time = (2 ** attempt) * 2
+                    time_module.sleep(wait_time)
+                    continue
+                raise
+            except Exception as e:
+                last_error = e
+                if attempt < max_retries - 1:
+                    time_module.sleep(2)
+                    continue
+                raise
+
+        # 모든 재시도 실패
+        raise last_error or Exception("API 호출 실패")
 
     # ============================================================
     # HTML 저장
