@@ -47,7 +47,9 @@ class FileProcessor:
 
     # Upstage API 설정
     UPSTAGE_API_URL = "https://api.upstage.ai/v1/document-ai/document-parse"
-    MAX_PDF_PAGES_PER_REQUEST = 10  # 대용량 PDF 분할 단위
+    MAX_PDF_PAGES_PER_REQUEST = 10  # Upstage 권장: 최대 10페이지
+    MAX_FILE_SIZE_MB = 50  # 최대 파일 크기 (MB)
+    API_CALL_DELAY = 2  # API 호출 간 대기 시간 (초)
 
     def __init__(self, output_folder: str,
                  generate_clean_html: bool = True,
@@ -762,11 +764,24 @@ class FileProcessor:
         """
         이미지 PDF를 Upstage API로 변환
 
-        대용량 PDF는 분할 처리
+        Upstage Document Parse API 제한사항:
+        - 최대 10페이지/요청 (대용량은 분할 필수)
+        - 파일 크기 제한 (약 50MB)
+        - Rate Limit 존재 (연속 요청 시 429 에러)
+
         크레딧 시스템: 1페이지당 55원 (부가세 포함)
         """
+        import time as time_module
+        import tempfile
+        import shutil
+
         if not self.api_key:
             return "<p>Upstage API 키가 필요합니다. 이미지 PDF는 OCR이 필요합니다.</p>"
+
+        # 파일 크기 확인
+        file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
+        if file_size_mb > self.MAX_FILE_SIZE_MB:
+            return f"<p>파일 크기가 너무 큽니다: {file_size_mb:.1f}MB (최대 {self.MAX_FILE_SIZE_MB}MB)</p>"
 
         try:
             from PyPDF2 import PdfReader, PdfWriter
@@ -775,8 +790,14 @@ class FileProcessor:
             return self._call_upstage_api(file_path)
 
         # PDF 페이지 수 확인
-        reader = PdfReader(file_path)
-        total_pages = len(reader.pages)
+        try:
+            reader = PdfReader(file_path)
+            total_pages = len(reader.pages)
+        except Exception as e:
+            return f"<p>PDF 파일을 읽을 수 없습니다: {str(e)}</p>"
+
+        if total_pages == 0:
+            return "<p>빈 PDF 파일입니다.</p>"
 
         # 크레딧 확인 (크레딧 시스템이 있는 경우)
         if self.credit_manager:
@@ -786,24 +807,28 @@ class FileProcessor:
 
         filename = os.path.basename(file_path)
 
+        # 10페이지 이하는 그대로 처리
         if total_pages <= self.MAX_PDF_PAGES_PER_REQUEST:
-            # 작은 파일은 그대로 처리
             result = self._call_upstage_api(file_path)
 
             # 성공 시 크레딧 차감
-            if self.credit_manager and result and not result.startswith("<p>API"):
+            if self.credit_manager and result and not result.startswith("<p>"):
                 self.credit_manager.deduct_credits(total_pages, filename)
 
             return result
 
-        # 대용량 파일 분할 처리
+        # === 대용량 파일 분할 처리 (10페이지씩) ===
         html_parts = []
-        temp_dir = os.path.join(os.path.dirname(file_path), '.temp_split')
-        os.makedirs(temp_dir, exist_ok=True)
         pages_processed = 0
+        temp_files = []  # 임시 파일 목록 관리
+
+        # 시스템 임시 디렉토리 사용 (Windows 호환성)
+        temp_dir = tempfile.mkdtemp(prefix='lawpro_pdf_')
 
         try:
-            for start_page in range(0, total_pages, self.MAX_PDF_PAGES_PER_REQUEST):
+            total_chunks = (total_pages + self.MAX_PDF_PAGES_PER_REQUEST - 1) // self.MAX_PDF_PAGES_PER_REQUEST
+
+            for chunk_idx, start_page in enumerate(range(0, total_pages, self.MAX_PDF_PAGES_PER_REQUEST)):
                 end_page = min(start_page + self.MAX_PDF_PAGES_PER_REQUEST, total_pages)
                 chunk_pages = end_page - start_page
 
@@ -812,34 +837,58 @@ class FileProcessor:
                 for i in range(start_page, end_page):
                     writer.add_page(reader.pages[i])
 
-                temp_path = os.path.join(temp_dir, f'part_{start_page}_{end_page}.pdf')
+                temp_path = os.path.join(temp_dir, f'chunk_{chunk_idx:03d}.pdf')
                 with open(temp_path, 'wb') as f:
                     writer.write(f)
+                temp_files.append(temp_path)
+
+                # API 호출 전 대기 (Rate Limit 방지, 첫 번째 청크 제외)
+                if chunk_idx > 0:
+                    time_module.sleep(self.API_CALL_DELAY)
 
                 # API 호출
-                part_html = self._call_upstage_api(temp_path)
-                html_parts.append(f'<!-- Pages {start_page + 1}-{end_page} -->')
-                html_parts.append(part_html)
-                pages_processed += chunk_pages
+                try:
+                    part_html = self._call_upstage_api(temp_path)
 
-                # 임시 파일 삭제
-                os.remove(temp_path)
+                    # 에러 응답 체크
+                    if part_html.startswith("<p>API") or part_html.startswith("<p>오류"):
+                        html_parts.append(f'<!-- Pages {start_page + 1}-{end_page}: ERROR -->')
+                        html_parts.append(part_html)
+                    else:
+                        html_parts.append(f'<!-- Pages {start_page + 1}-{end_page} -->')
+                        html_parts.append(part_html)
+                        pages_processed += chunk_pages
 
-            # 성공 시 크레딧 차감 (전체 페이지)
+                except Exception as e:
+                    html_parts.append(f'<!-- Pages {start_page + 1}-{end_page}: FAILED -->')
+                    html_parts.append(f'<p>페이지 {start_page + 1}-{end_page} 변환 실패: {str(e)}</p>')
+
+            # 성공 시 크레딧 차감 (처리된 페이지만)
             if self.credit_manager and pages_processed > 0:
                 self.credit_manager.deduct_credits(pages_processed, filename)
 
         finally:
-            # 임시 디렉토리 정리
+            # 임시 파일 정리 (지연 삭제로 Windows 파일 잠금 문제 해결)
+            time_module.sleep(0.5)  # 파일 핸들 해제 대기
             try:
-                os.rmdir(temp_dir)
-            except:
-                pass
+                shutil.rmtree(temp_dir, ignore_errors=True)
+            except Exception:
+                pass  # 정리 실패해도 계속 진행
+
+        if not html_parts:
+            return "<p>PDF 변환에 실패했습니다.</p>"
 
         return '\n'.join(html_parts)
 
     def _call_upstage_api(self, file_path: str, max_retries: int = 3) -> str:
-        """Upstage Document Parse API 호출 (429 에러 시 재시도)"""
+        """
+        Upstage Document Parse API 호출
+
+        에러 핸들링:
+        - 429 Too Many Requests: 지수 백오프 후 재시도
+        - 400 Bad Request: 파일 형식/크기 문제 (재시도 안함)
+        - 500 Server Error: 대기 후 재시도
+        """
         import time as time_module
 
         headers = {
@@ -854,6 +903,7 @@ class FileProcessor:
         }
 
         last_error = None
+        response = None
 
         for attempt in range(max_retries):
             try:
@@ -870,7 +920,22 @@ class FileProcessor:
 
                 # 429 Too Many Requests - 대기 후 재시도
                 if response.status_code == 429:
-                    wait_time = (2 ** attempt) * 2  # 2초, 4초, 8초
+                    wait_time = (2 ** attempt) * 3 + 2  # 5초, 8초, 11초
+                    time_module.sleep(wait_time)
+                    continue
+
+                # 400 Bad Request - 파일 문제 (재시도 불필요)
+                if response.status_code == 400:
+                    try:
+                        error_detail = response.json()
+                        error_msg = error_detail.get('message', error_detail.get('error', str(error_detail)))
+                    except:
+                        error_msg = response.text[:200]
+                    return f"<p>API 요청 오류 (400): {error_msg}</p>"
+
+                # 500 Server Error - 대기 후 재시도
+                if response.status_code >= 500:
+                    wait_time = (2 ** attempt) * 2
                     time_module.sleep(wait_time)
                     continue
 
@@ -882,12 +947,29 @@ class FileProcessor:
                     return result['content']['html']
                 elif 'html' in result:
                     return result['html']
+                elif 'text' in result:
+                    # 텍스트만 반환된 경우
+                    return f"<p>{result['text']}</p>"
                 else:
-                    return f"<p>API 응답 형식 오류: {result}</p>"
+                    return f"<p>API 응답 형식 오류: {str(result)[:500]}</p>"
 
+            except requests.exceptions.Timeout:
+                last_error = Exception("API 요청 타임아웃 (5분 초과)")
+                if attempt < max_retries - 1:
+                    time_module.sleep(5)
+                    continue
+            except requests.exceptions.ConnectionError as e:
+                last_error = e
+                if attempt < max_retries - 1:
+                    time_module.sleep(3)
+                    continue
             except requests.exceptions.HTTPError as e:
                 last_error = e
-                if response.status_code == 429:
+                if response and response.status_code == 429:
+                    wait_time = (2 ** attempt) * 3 + 2
+                    time_module.sleep(wait_time)
+                    continue
+                elif response and response.status_code >= 500:
                     wait_time = (2 ** attempt) * 2
                     time_module.sleep(wait_time)
                     continue
@@ -897,10 +979,10 @@ class FileProcessor:
                 if attempt < max_retries - 1:
                     time_module.sleep(2)
                     continue
-                raise
 
         # 모든 재시도 실패
-        raise last_error or Exception("API 호출 실패")
+        error_msg = str(last_error) if last_error else "API 호출 실패"
+        return f"<p>API 오류: {error_msg}</p>"
 
     # ============================================================
     # HTML 저장
