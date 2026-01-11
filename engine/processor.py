@@ -895,17 +895,25 @@ class FileProcessor:
         Upstage Document Parse API 호출
 
         적응형 Rate Limit 시스템:
-        - 요청 전: 학습된 Rate Limit 기반 throttling
-        - 성공 시: 요청 빈도 기록 (학습 데이터)
-        - 429 시: 요청 빈도 분석 및 Rate Limit 재학습, 충분히 대기 후 재시도
+        - 요청 전: 쿨다운 상태 확인 → 잔여 시간만 대기
+        - 성공 시: 쿨다운 리셋, 요청 빈도 기록 (학습 데이터)
+        - 429 시: 쿨다운 설정, 요청 빈도 분석 및 Rate Limit 재학습
+
+        쿨다운 시스템:
+        - 429 발생 시 쿨다운 설정 (10초→30초→1분→2분→3분)
+        - 다음 요청 시 잔여 시간만 대기 (블로킹 최소화)
+        - 사용자가 프로세스 취소하면 자동 중단
+        - 대기 중 아무 요청 없으면 다음 요청 시점에 시도
 
         에러 핸들링:
-        - 429 Too Many Requests: 분석 후 재시도 (10초→30초→1분→2분→3분), 성공까지 반복
+        - 429 Too Many Requests: 쿨다운 설정 후 재시도 (성공까지 반복)
         - 400 Bad Request: 파일 형식/크기 문제 (재시도 안함)
         - 500 Server Error: 대기 후 재시도 (최대 3회)
         """
         import sys
         import time as time_module
+
+        filename = os.path.basename(file_path)
 
         headers = {
             "Authorization": f"Bearer {self.api_key}"
@@ -918,14 +926,21 @@ class FileProcessor:
             "coordinates": "false"
         }
 
-        rate_limit_retry_count = 0
         other_retry_count = 0
         max_other_retries = 3
 
         while True:
             try:
-                # Rate Limit 체크 (학습된 한도 기반 throttling)
+                # === 쿨다운 체크 (잔여 시간만 대기) ===
                 if self.rate_limiter:
+                    is_cooldown, remaining = self.rate_limiter.check_cooldown()
+                    if is_cooldown and remaining > 0:
+                        # 잔여 시간만 대기 (전체 대기 시간 아님)
+                        log_msg = self.rate_limiter.get_cooldown_wait_log(remaining, filename)
+                        print(log_msg, file=sys.stderr, flush=True)
+                        time_module.sleep(remaining)
+
+                    # Rate Limit 체크 (학습된 한도 기반 throttling)
                     should_wait, wait_sec = self.rate_limiter.should_wait()
                     if should_wait:
                         time_module.sleep(wait_sec)
@@ -934,7 +949,7 @@ class FileProcessor:
                     self.rate_limiter.record_request()
 
                 with open(file_path, "rb") as f:
-                    files = {"document": (os.path.basename(file_path), f)}
+                    files = {"document": (filename, f)}
 
                     response = requests.post(
                         self.UPSTAGE_API_URL,
@@ -946,22 +961,25 @@ class FileProcessor:
 
                 # === 429 Too Many Requests ===
                 if response.status_code == 429:
-                    # Rate Limit 분석 및 학습
                     if self.rate_limiter:
+                        # Rate Limit 분석 및 학습
                         analysis = self.rate_limiter.record_429_error()
-                        # 상세 분석 로그 출력
                         log_msg = self.rate_limiter.get_429_analysis_log(analysis)
                         print(log_msg, file=sys.stderr, flush=True)
 
-                    # 대기 시간: 10초, 30초, 1분, 2분, 3분 (이후 3분 반복)
-                    delay_idx = min(rate_limit_retry_count, len(self.RATE_LIMIT_RETRY_DELAYS) - 1)
-                    wait_time = self.RATE_LIMIT_RETRY_DELAYS[delay_idx]
-                    rate_limit_retry_count += 1
+                        # 쿨다운 설정 (블로킹 없이 상태만 기록)
+                        wait_time, retry_count = self.rate_limiter.set_cooldown(filename)
+                        log_msg = self.rate_limiter.get_cooldown_log(wait_time, retry_count, filename)
+                        print(log_msg, file=sys.stderr, flush=True)
 
-                    print(f'{{"type": "rate_limit_wait", "file": "{os.path.basename(file_path)}", "wait_sec": {wait_time}, "retry": {rate_limit_retry_count}}}', file=sys.stderr, flush=True)
-
-                    time_module.sleep(wait_time)
-                    continue
+                        # 쿨다운 시간만큼 대기 후 재시도
+                        # (사용자가 취소하면 여기서 프로세스 종료됨)
+                        time_module.sleep(wait_time)
+                        continue
+                    else:
+                        # Rate Limiter 없으면 고정 대기
+                        time_module.sleep(30)
+                        continue
 
                 # === 400 Bad Request ===
                 if response.status_code == 400:
@@ -983,8 +1001,11 @@ class FileProcessor:
                 response.raise_for_status()
                 result = response.json()
 
-                # === 성공 - Rate Limit 학습 데이터 기록 ===
+                # === 성공 ===
                 if self.rate_limiter:
+                    # 쿨다운 리셋 (성공했으므로)
+                    self.rate_limiter.reset_cooldown()
+                    # Rate Limit 학습 데이터 기록
                     self.rate_limiter.record_success()
 
                 # HTML 추출

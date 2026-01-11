@@ -12,6 +12,12 @@ Upstage API Rate Limiter - 적응형 Rate Limit 학습 시스템
 3. 성공 지속 시: 주기적으로 요청 빈도 기록 (성공 케이스)
 4. 두 케이스의 중간값을 내부 Rate Limit으로 설정
 5. 요청 전 Rate Limit 초과 예상 시 자동 대기
+
+쿨다운 시스템:
+- 429 발생 시 쿨다운 상태 기록 (블로킹 없이)
+- 다음 요청 시 쿨다운 잔여 시간만 대기
+- 사용자 취소 시 쿨다운 리셋 가능
+- 대기 중 새 요청 시 잔여 시간만 대기
 """
 
 import os
@@ -40,6 +46,9 @@ class RateLimitTracker:
     # 기본 Rate Limit (학습 전 초기값) - 분당 요청 수
     DEFAULT_RATE_LIMIT = 30  # 보수적으로 시작
 
+    # 429 재시도 대기 시간 (초)
+    RETRY_DELAYS = [10, 30, 60, 120, 180]  # 10초, 30초, 1분, 2분, 3분
+
     def __init__(self, data_dir: str = None):
         """
         Args:
@@ -61,6 +70,11 @@ class RateLimitTracker:
             "learned_rate_limit": self.DEFAULT_RATE_LIMIT,  # 학습된 분당 제한
             "last_updated": None
         }
+
+        # === 쿨다운 상태 (429 발생 시 설정) ===
+        self.cooldown_until = 0  # 쿨다운 종료 시점 (timestamp)
+        self.cooldown_retry_count = 0  # 현재 재시도 횟수
+        self.cooldown_file = None  # 429 발생한 파일명 (로깅용)
 
         # 스레드 안전성
         self.lock = threading.Lock()
@@ -289,6 +303,102 @@ class RateLimitTracker:
             }
 
         return json.dumps(log_data, ensure_ascii=False)
+
+    # ============================================================
+    # 쿨다운 시스템 (429 발생 시 비블로킹 대기)
+    # ============================================================
+
+    def set_cooldown(self, filename: str = None) -> Tuple[float, int]:
+        """
+        429 발생 시 쿨다운 설정 (블로킹 없이 상태만 기록)
+
+        Args:
+            filename: 429 발생한 파일명 (로깅용)
+
+        Returns:
+            (wait_seconds, retry_count): 대기 시간과 재시도 횟수
+        """
+        with self.lock:
+            # 재시도 횟수에 따른 대기 시간 결정
+            delay_idx = min(self.cooldown_retry_count, len(self.RETRY_DELAYS) - 1)
+            wait_time = self.RETRY_DELAYS[delay_idx]
+
+            # 쿨다운 상태 설정
+            self.cooldown_until = time.time() + wait_time
+            self.cooldown_retry_count += 1
+            self.cooldown_file = filename
+
+            return wait_time, self.cooldown_retry_count
+
+    def check_cooldown(self) -> Tuple[bool, float]:
+        """
+        쿨다운 상태 확인
+
+        Returns:
+            (is_in_cooldown, remaining_seconds): 쿨다운 중 여부와 잔여 시간
+
+        사용법:
+        - 쿨다운 중이면 remaining_seconds만큼 대기 후 요청
+        - 쿨다운 종료되었으면 즉시 요청 가능
+        """
+        with self.lock:
+            now = time.time()
+
+            if now >= self.cooldown_until:
+                # 쿨다운 종료됨
+                return False, 0
+
+            # 쿨다운 중 - 잔여 시간 반환
+            remaining = self.cooldown_until - now
+            return True, remaining
+
+    def reset_cooldown(self):
+        """
+        쿨다운 리셋 (성공 시 또는 사용자 취소 시)
+        """
+        with self.lock:
+            self.cooldown_until = 0
+            self.cooldown_retry_count = 0
+            self.cooldown_file = None
+
+    def is_in_cooldown(self) -> bool:
+        """쿨다운 중인지 확인"""
+        with self.lock:
+            return time.time() < self.cooldown_until
+
+    def get_cooldown_status(self) -> Dict:
+        """쿨다운 상태 정보 반환"""
+        with self.lock:
+            now = time.time()
+            is_active = now < self.cooldown_until
+            remaining = max(0, self.cooldown_until - now) if is_active else 0
+
+            return {
+                "is_active": is_active,
+                "remaining_seconds": round(remaining, 1),
+                "retry_count": self.cooldown_retry_count,
+                "file": self.cooldown_file
+            }
+
+    def get_cooldown_log(self, wait_time: float, retry_count: int, filename: str) -> str:
+        """쿨다운 설정 로그 반환"""
+        return json.dumps({
+            "type": "rate_limit_cooldown",
+            "action": "set",
+            "wait_sec": wait_time,
+            "retry": retry_count,
+            "file": filename,
+            "cooldown_until": datetime.fromtimestamp(self.cooldown_until).isoformat()
+        }, ensure_ascii=False)
+
+    def get_cooldown_wait_log(self, remaining: float, filename: str) -> str:
+        """쿨다운 대기 로그 반환"""
+        return json.dumps({
+            "type": "rate_limit_cooldown",
+            "action": "wait",
+            "remaining_sec": round(remaining, 1),
+            "file": filename
+        }, ensure_ascii=False)
 
 
 # 싱글톤 인스턴스
