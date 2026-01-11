@@ -1,0 +1,35 @@
+# LawPro Fast Converter - Python Engine Dependencies
+
+# Document Processing
+pandas>=2.0.0
+openpyxl>=3.1.0
+python-docx>=1.0.0
+python-pptx>=0.6.21
+pdfplumber>=0.10.0
+PyPDF2>=3.0.0
+pdf2image>=1.16.0
+Pillow>=10.0.0
+
+# HWPX Processing
+lxml>=4.9.0
+python-hwp>=0.2.0
+
+# OCR Enhancement
+pytesseract>=0.3.10
+
+# API & Network
+requests>=2.31.0
+aiohttp>=3.9.0
+
+# MCP Server
+mcp[cli]>=1.0.0
+
+# Gemini Integration
+google-generativeai>=0.3.0
+
+# Utilities
+tqdm>=4.66.0
+chardet>=5.2.0
+
+# Build
+pyinstaller>=6.0.0
