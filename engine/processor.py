@@ -41,6 +41,13 @@ try:
 except ImportError:
     HAS_ADMIN_CONFIG = False
 
+# Rate Limiter (적응형 Rate Limit 학습)
+try:
+    from rate_limiter import get_rate_limiter
+    HAS_RATE_LIMITER = True
+except ImportError:
+    HAS_RATE_LIMITER = False
+
 
 class FileProcessor:
     """하이브리드 문서 처리기"""
@@ -90,6 +97,12 @@ class FileProcessor:
             self.credit_manager = get_credit_manager()
         else:
             self.credit_manager = None
+
+        # Rate Limiter 초기화 (적응형 Rate Limit 학습)
+        if HAS_RATE_LIMITER:
+            self.rate_limiter = get_rate_limiter()
+        else:
+            self.rate_limiter = None
 
     def process(self, file_path: str) -> Dict[str, Any]:
         """
@@ -881,12 +894,17 @@ class FileProcessor:
         """
         Upstage Document Parse API 호출
 
+        적응형 Rate Limit 시스템:
+        - 요청 전: 학습된 Rate Limit 기반 throttling
+        - 성공 시: 요청 빈도 기록 (학습 데이터)
+        - 429 시: 요청 빈도 분석 및 Rate Limit 재학습, 충분히 대기 후 재시도
+
         에러 핸들링:
-        - 429 Too Many Requests: 충분히 대기 후 재시도 (10초→30초→1분→2분→3분), 성공까지 반복
+        - 429 Too Many Requests: 분석 후 재시도 (10초→30초→1분→2분→3분), 성공까지 반복
         - 400 Bad Request: 파일 형식/크기 문제 (재시도 안함)
-        - 500 Server Error: 대기 후 재시도
-        - 기타 네트워크 오류: 짧은 대기 후 재시도
+        - 500 Server Error: 대기 후 재시도 (최대 3회)
         """
+        import sys
         import time as time_module
 
         headers = {
@@ -900,12 +918,21 @@ class FileProcessor:
             "coordinates": "false"
         }
 
-        rate_limit_retry_count = 0  # 429 에러 재시도 횟수
-        other_retry_count = 0  # 기타 에러 재시도 횟수
-        max_other_retries = 3  # 429 외 에러는 3회까지만 재시도
+        rate_limit_retry_count = 0
+        other_retry_count = 0
+        max_other_retries = 3
 
-        while True:  # 429는 성공할 때까지 계속 재시도
+        while True:
             try:
+                # Rate Limit 체크 (학습된 한도 기반 throttling)
+                if self.rate_limiter:
+                    should_wait, wait_sec = self.rate_limiter.should_wait()
+                    if should_wait:
+                        time_module.sleep(wait_sec)
+
+                    # 요청 기록
+                    self.rate_limiter.record_request()
+
                 with open(file_path, "rb") as f:
                     files = {"document": (os.path.basename(file_path), f)}
 
@@ -914,24 +941,29 @@ class FileProcessor:
                         headers=headers,
                         data=data,
                         files=files,
-                        timeout=300  # 5분 타임아웃
+                        timeout=300
                     )
 
-                # 429 Too Many Requests - 충분히 대기 후 재시도 (성공할 때까지)
+                # === 429 Too Many Requests ===
                 if response.status_code == 429:
+                    # Rate Limit 분석 및 학습
+                    if self.rate_limiter:
+                        analysis = self.rate_limiter.record_429_error()
+                        # 상세 분석 로그 출력
+                        log_msg = self.rate_limiter.get_429_analysis_log(analysis)
+                        print(log_msg, file=sys.stderr, flush=True)
+
                     # 대기 시간: 10초, 30초, 1분, 2분, 3분 (이후 3분 반복)
                     delay_idx = min(rate_limit_retry_count, len(self.RATE_LIMIT_RETRY_DELAYS) - 1)
                     wait_time = self.RATE_LIMIT_RETRY_DELAYS[delay_idx]
                     rate_limit_retry_count += 1
 
-                    # 로그 출력 (Electron에서 확인 가능)
-                    import sys
-                    print(f'{{"type": "rate_limit", "file": "{os.path.basename(file_path)}", "wait": {wait_time}, "retry": {rate_limit_retry_count}}}', file=sys.stderr, flush=True)
+                    print(f'{{"type": "rate_limit_wait", "file": "{os.path.basename(file_path)}", "wait_sec": {wait_time}, "retry": {rate_limit_retry_count}}}', file=sys.stderr, flush=True)
 
                     time_module.sleep(wait_time)
-                    continue  # 재시도
+                    continue
 
-                # 400 Bad Request - 파일 문제 (재시도 불필요)
+                # === 400 Bad Request ===
                 if response.status_code == 400:
                     try:
                         error_detail = response.json()
@@ -940,17 +972,20 @@ class FileProcessor:
                         error_msg = response.text[:200]
                     return f"<p>API 요청 오류 (400): {error_msg}</p>"
 
-                # 500 Server Error - 대기 후 재시도 (최대 3회)
+                # === 500 Server Error ===
                 if response.status_code >= 500:
                     other_retry_count += 1
                     if other_retry_count <= max_other_retries:
-                        wait_time = other_retry_count * 10  # 10초, 20초, 30초
-                        time_module.sleep(wait_time)
+                        time_module.sleep(other_retry_count * 10)
                         continue
                     return f"<p>API 서버 오류 ({response.status_code}): 재시도 {max_other_retries}회 실패</p>"
 
                 response.raise_for_status()
                 result = response.json()
+
+                # === 성공 - Rate Limit 학습 데이터 기록 ===
+                if self.rate_limiter:
+                    self.rate_limiter.record_success()
 
                 # HTML 추출
                 if 'content' in result and 'html' in result['content']:
@@ -958,7 +993,6 @@ class FileProcessor:
                 elif 'html' in result:
                     return result['html']
                 elif 'text' in result:
-                    # 텍스트만 반환된 경우
                     return f"<p>{result['text']}</p>"
                 else:
                     return f"<p>API 응답 형식 오류: {str(result)[:500]}</p>"
@@ -978,7 +1012,6 @@ class FileProcessor:
                 return "<p>API 연결 오류: 네트워크 확인 필요</p>"
 
             except requests.exceptions.HTTPError as e:
-                # 429는 위에서 처리됨, 여기는 기타 HTTP 에러
                 other_retry_count += 1
                 if other_retry_count <= max_other_retries:
                     time_module.sleep(5)
