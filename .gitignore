@@ -1,0 +1,62 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+*.egg
+*.spec
+
+# Electron
+out/
+*.asar
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+*.log
+
+# Environment
+.env
+.env.local
+*.env
+
+# API Keys (절대 커밋하지 마세요)
+**/config.json
+**/secrets.json
+**/credentials.json
+
+# Test outputs
+Converted_HTML/
+Final_Reviewed/
+Final_Reviewed_Gemini/
+Archive/
+*.html.backup.*
+
+# Temporary files
+.temp_*
+tmp/
+temp/
+*.tmp
+
+# Coverage
+coverage/
+.nyc_output/
+htmlcov/
+.coverage
