@@ -21,9 +21,9 @@ from processor import FileProcessor
 
 # 병렬 처리 설정
 # - 로컬 변환 (DOCX, HWPX 등): CPU 코어 수 기반
-# - API 변환 (이미지 PDF): 동시 요청 제한으로 2-3개만
+# - API 변환 (이미지 PDF): Upstage 권장사항 - 동시 요청 금지, 순차 처리만
 MAX_WORKERS_LOCAL = min(8, (os.cpu_count() or 4))
-MAX_WORKERS_API = 2  # Upstage API 동시 요청 제한 (429 방지)
+MAX_WORKERS_API = 1  # Upstage: "send images one at a time in series" (동시 요청 시 429 에러)
 
 # 지원 파일 확장자
 SUPPORTED_EXTENSIONS = (
