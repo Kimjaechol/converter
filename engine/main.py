@@ -43,7 +43,8 @@ def collect_files(input_folder: str) -> List[str]:
     tasks = []
     for root, dirs, files in os.walk(input_folder):
         # 출력 폴더 제외
-        dirs[:] = [d for d in dirs if d not in ('Converted_HTML', 'Final_Reviewed', 'Final_Reviewed_Gemini')]
+        excluded = ('Converted_HTML', 'Final_Reviewed', 'Final_Reviewed_Gemini', 'Final_Reviewed_OpenAI', 'Archive')
+        dirs[:] = [d for d in dirs if d not in excluded]
 
         for file in files:
             if file.lower().endswith(SUPPORTED_EXTENSIONS):
@@ -55,7 +56,15 @@ def collect_files(input_folder: str) -> List[str]:
 
 
 def main():
-    """메인 실행 함수"""
+    """
+    메인 실행 함수
+
+    인자:
+        [1] input_folder: 변환할 문서가 있는 폴더 경로
+        [2] upstage_key: Upstage API 키 (선택)
+        [3] generate_clean: Clean HTML 생성 여부 (true/false, 기본: true)
+        [4] generate_markdown: 마크다운 생성 여부 (true/false, 기본: true)
+    """
     try:
         # 인자 파싱
         if len(sys.argv) < 2:
@@ -64,6 +73,10 @@ def main():
 
         input_folder = sys.argv[1]
         upstage_key = sys.argv[2] if len(sys.argv) > 2 else ""
+
+        # 출력 옵션 (기본값: 모두 생성)
+        generate_clean = sys.argv[3].lower() != 'false' if len(sys.argv) > 3 else True
+        generate_markdown = sys.argv[4].lower() != 'false' if len(sys.argv) > 4 else True
 
         # 입력 폴더 검증
         if not os.path.isdir(input_folder):
@@ -77,7 +90,9 @@ def main():
         # 프로세서 초기화
         processor = FileProcessor(
             api_key=upstage_key,
-            output_folder=output_folder
+            output_folder=output_folder,
+            generate_clean_html=generate_clean,
+            generate_markdown=generate_markdown
         )
 
         # 파일 수집

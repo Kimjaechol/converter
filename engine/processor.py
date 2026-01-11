@@ -20,6 +20,13 @@ from xml.etree import ElementTree as ET
 
 import requests
 
+# Clean HTML 및 마크다운 변환용
+try:
+    from cleaner import ContentCleaner
+    HAS_CLEANER = True
+except ImportError:
+    HAS_CLEANER = False
+
 
 class FileProcessor:
     """하이브리드 문서 처리기"""
@@ -28,9 +35,19 @@ class FileProcessor:
     UPSTAGE_API_URL = "https://api.upstage.ai/v1/document-ai/document-parse"
     MAX_PDF_PAGES_PER_REQUEST = 10  # 대용량 PDF 분할 단위
 
-    def __init__(self, api_key: str, output_folder: str):
+    def __init__(self, api_key: str, output_folder: str,
+                 generate_clean_html: bool = True,
+                 generate_markdown: bool = True):
         self.api_key = api_key
         self.output_folder = output_folder
+        self.generate_clean_html = generate_clean_html
+        self.generate_markdown = generate_markdown
+
+        # Cleaner 초기화
+        if HAS_CLEANER and (generate_clean_html or generate_markdown):
+            self.cleaner = ContentCleaner()
+        else:
+            self.cleaner = None
 
     def process(self, file_path: str) -> Dict[str, Any]:
         """
@@ -38,13 +55,24 @@ class FileProcessor:
 
         Returns:
             Dict with keys: status, file, method, time, error (optional)
+
+        Output Structure:
+            {output_folder}/{filename}/
+                ├── view.html       (원본 서식 - 열람용)
+                ├── clean_ai.html   (AI 학습용 - JS/CSS 제거)
+                └── content.md      (마크다운 - 노트앱 호환)
         """
         filename = os.path.basename(file_path)
+        doc_name = os.path.splitext(filename)[0]
         ext = os.path.splitext(filename)[1].lower()
-        save_path = os.path.join(self.output_folder, f"{filename}.html")
+
+        # 파일별 출력 폴더 생성
+        doc_folder = os.path.join(self.output_folder, doc_name)
+        os.makedirs(doc_folder, exist_ok=True)
 
         start_time = time.time()
         method = "Local"
+        outputs = []
 
         try:
             content = ""
@@ -73,8 +101,33 @@ class FileProcessor:
             else:
                 raise ValueError(f"지원하지 않는 파일 형식: {ext}")
 
-            # HTML 저장
-            self._save_html(save_path, content, filename)
+            # === 3-Way Output 저장 ===
+
+            # 1. View HTML (원본 서식용)
+            view_path = os.path.join(doc_folder, "view.html")
+            self._save_html(view_path, content, filename)
+            outputs.append("view.html")
+
+            # 2. Clean HTML (AI 학습용)
+            if self.generate_clean_html and self.cleaner:
+                clean_path = os.path.join(doc_folder, "clean_ai.html")
+                clean_html = self.cleaner.make_clean_html_for_ai(content)
+                with open(clean_path, 'w', encoding='utf-8') as f:
+                    f.write(clean_html)
+                outputs.append("clean_ai.html")
+
+            # 3. Markdown (노트앱 호환용)
+            if self.generate_markdown and self.cleaner:
+                md_path = os.path.join(doc_folder, "content.md")
+                # Clean HTML 사용 (없으면 원본에서 변환)
+                if self.generate_clean_html:
+                    markdown = self.cleaner.convert_to_markdown(clean_html)
+                else:
+                    clean_html = self.cleaner.make_clean_html_for_ai(content)
+                    markdown = self.cleaner.convert_to_markdown(clean_html)
+                with open(md_path, 'w', encoding='utf-8') as f:
+                    f.write(markdown)
+                outputs.append("content.md")
 
             elapsed = round(time.time() - start_time, 2)
             return {
@@ -82,7 +135,8 @@ class FileProcessor:
                 "file": filename,
                 "method": method,
                 "time": elapsed,
-                "output": save_path
+                "output": doc_folder,
+                "outputs": outputs
             }
 
         except Exception as e:

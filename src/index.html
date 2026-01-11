@@ -149,6 +149,23 @@
                     </div>
                 </div>
 
+                <!-- 출력 옵션 -->
+                <div class="flex items-center space-x-6 mb-4 p-4 bg-gray-800/50 rounded-lg">
+                    <span class="text-sm text-gray-400">출력 형식:</span>
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="chkViewHtml" checked disabled class="w-4 h-4 rounded bg-gray-700 border-gray-600 text-primary-500">
+                        <span class="text-sm">View HTML (필수)</span>
+                    </label>
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="chkCleanHtml" checked class="w-4 h-4 rounded bg-gray-700 border-gray-600 text-green-500 focus:ring-green-500">
+                        <span class="text-sm text-green-400">AI용 Clean HTML</span>
+                    </label>
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="chkMarkdown" checked class="w-4 h-4 rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-blue-500">
+                        <span class="text-sm text-blue-400">Markdown</span>
+                    </label>
+                </div>
+
                 <!-- 드롭 영역 -->
                 <div id="dropZone" class="drop-zone border-2 border-dashed border-gray-600 rounded-xl flex flex-col items-center justify-center p-12 transition-all cursor-pointer hover:border-primary-500 hover:bg-gray-800/50">
                     <div id="dropIcon" class="text-6xl mb-4 text-gray-500">
@@ -218,63 +235,88 @@
             </section>
 
             <!-- 페이지: AI 검수 -->
-            <section id="pageReview" class="page flex-1 flex flex-col p-6 hidden">
+            <section id="pageReview" class="page flex-1 flex flex-col p-6 hidden overflow-y-auto">
                 <div class="mb-6">
                     <h2 class="text-2xl font-bold">AI 검수</h2>
-                    <p class="text-gray-400 mt-1">Claude 또는 Gemini를 사용하여 OCR 오류를 검수합니다</p>
+                    <p class="text-gray-400 mt-1">Claude, Gemini, 또는 OpenAI를 사용하여 OCR 오류를 검수합니다</p>
                 </div>
 
                 <!-- AI 연결 카드 -->
-                <div class="grid grid-cols-2 gap-6 mb-6">
+                <div class="grid grid-cols-3 gap-4 mb-6">
                     <!-- Claude 카드 -->
-                    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-                        <div class="flex items-center justify-between mb-4">
+                    <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
+                        <div class="flex items-center justify-between mb-3">
                             <div class="flex items-center">
                                 <div class="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center mr-3">
                                     <span class="text-xl font-bold">C</span>
                                 </div>
                                 <div>
-                                    <h3 class="font-bold text-lg">Claude Desktop</h3>
-                                    <p class="text-sm text-gray-400">MCP 연결</p>
+                                    <h3 class="font-bold">Claude</h3>
+                                    <p class="text-xs text-gray-400">MCP 연결</p>
                                 </div>
                             </div>
-                            <span id="claudeConnectionBadge" class="px-3 py-1 rounded-full text-xs bg-gray-700 text-gray-400">미연결</span>
+                            <span id="claudeConnectionBadge" class="px-2 py-1 rounded-full text-xs bg-gray-700 text-gray-400">미연결</span>
                         </div>
-                        <p class="text-sm text-gray-400 mb-4">
-                            Claude Desktop과 연결하여 고품질 OCR 검수를 수행합니다. 추가 API 비용 없이 사용 가능합니다.
+                        <p class="text-xs text-gray-400 mb-3">
+                            Claude Desktop과 MCP로 연결. 추가 비용 없음.
                         </p>
-                        <button id="connectClaude" class="w-full py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors">
-                            원클릭 연결하기
+                        <button id="connectClaude" class="w-full py-2 bg-purple-600 hover:bg-purple-500 rounded-lg text-sm font-medium transition-colors">
+                            원클릭 연결
                         </button>
-                        <p id="claudeMessage" class="mt-3 text-sm text-center hidden"></p>
+                        <p id="claudeMessage" class="mt-2 text-xs text-center hidden"></p>
                     </div>
 
                     <!-- Gemini 카드 -->
-                    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-                        <div class="flex items-center justify-between mb-4">
+                    <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
+                        <div class="flex items-center justify-between mb-3">
                             <div class="flex items-center">
                                 <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center mr-3">
                                     <span class="text-xl font-bold">G</span>
                                 </div>
                                 <div>
-                                    <h3 class="font-bold text-lg">Gemini</h3>
-                                    <p class="text-sm text-gray-400">API 백업</p>
+                                    <h3 class="font-bold">Gemini</h3>
+                                    <p class="text-xs text-gray-400">API 백업</p>
                                 </div>
                             </div>
-                            <span id="geminiConnectionBadge" class="px-3 py-1 rounded-full text-xs bg-gray-700 text-gray-400">미설정</span>
+                            <span id="geminiConnectionBadge" class="px-2 py-1 rounded-full text-xs bg-gray-700 text-gray-400">미설정</span>
                         </div>
-                        <p class="text-sm text-gray-400 mb-4">
-                            Claude 사용량 소진 시 Gemini Flash로 검수합니다. 무료 티어 사용 가능합니다.
-                        </p>
                         <input type="password" id="geminiKeyInput" placeholder="Gemini API Key"
-                            class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm mb-3 focus:border-blue-500 focus:outline-none">
+                            class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-xs mb-2 focus:border-blue-500 focus:outline-none">
                         <div class="flex space-x-2">
-                            <select id="geminiModelSelect" class="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm focus:border-blue-500 focus:outline-none">
+                            <select id="geminiModelSelect" class="flex-1 px-2 py-2 bg-gray-700 border border-gray-600 rounded-lg text-xs focus:border-blue-500 focus:outline-none">
                                 <option value="flash-2.0">Gemini 2.0 Flash</option>
                                 <option value="flash-1.5">Gemini 1.5 Flash</option>
                                 <option value="pro-1.5">Gemini 1.5 Pro</option>
                             </select>
-                            <button id="saveGeminiKey" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm transition-colors">
+                            <button id="saveGeminiKey" class="px-3 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs transition-colors">
+                                저장
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- OpenAI 카드 -->
+                    <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center">
+                                <div class="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center mr-3">
+                                    <span class="text-xl font-bold">O</span>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold">OpenAI</h3>
+                                    <p class="text-xs text-gray-400">GPT API</p>
+                                </div>
+                            </div>
+                            <span id="openaiConnectionBadge" class="px-2 py-1 rounded-full text-xs bg-gray-700 text-gray-400">미설정</span>
+                        </div>
+                        <input type="password" id="openaiKeyInput" placeholder="OpenAI API Key"
+                            class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-xs mb-2 focus:border-green-500 focus:outline-none">
+                        <div class="flex space-x-2">
+                            <select id="openaiModelSelect" class="flex-1 px-2 py-2 bg-gray-700 border border-gray-600 rounded-lg text-xs focus:border-green-500 focus:outline-none">
+                                <option value="gpt-4o">GPT-4o (권장)</option>
+                                <option value="gpt-4o-mini">GPT-4o Mini</option>
+                                <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                            </select>
+                            <button id="saveOpenaiKey" class="px-3 py-2 bg-green-600 hover:bg-green-500 rounded-lg text-xs transition-colors">
                                 저장
                             </button>
                         </div>
@@ -282,10 +324,19 @@
                 </div>
 
                 <!-- 검수 작업 영역 -->
-                <div class="flex-1 bg-gray-800 rounded-xl p-6 border border-gray-700 flex flex-col">
-                    <h3 class="font-bold text-lg mb-4">Gemini 배치 검수</h3>
+                <div class="flex-1 bg-gray-800 rounded-xl p-6 border border-gray-700 flex flex-col min-h-[300px]">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-bold text-lg">배치 검수</h3>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-sm text-gray-400">검수 AI:</span>
+                            <select id="reviewAISelect" class="px-3 py-1 bg-gray-700 border border-gray-600 rounded-lg text-sm focus:border-primary-500 focus:outline-none">
+                                <option value="gemini">Gemini</option>
+                                <option value="openai">OpenAI</option>
+                            </select>
+                        </div>
+                    </div>
                     <p class="text-sm text-gray-400 mb-4">
-                        변환된 HTML 문서를 Gemini로 일괄 검수합니다. Claude MCP 검수는 Claude Desktop에서 직접 수행합니다.
+                        변환된 HTML 문서를 선택한 AI로 일괄 검수합니다. Claude MCP 검수는 Claude Desktop에서 직접 수행합니다.
                     </p>
 
                     <div class="flex items-center space-x-4 mb-4">
@@ -294,13 +345,13 @@
                         <button id="selectReviewFolder" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg text-sm transition-colors">
                             폴더 선택
                         </button>
-                        <button id="startGeminiReview" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors disabled:opacity-50" disabled>
-                            Gemini 검수 시작
+                        <button id="startReview" class="px-6 py-2 bg-primary-600 hover:bg-primary-500 rounded-lg text-sm font-medium transition-colors disabled:opacity-50" disabled>
+                            검수 시작
                         </button>
                     </div>
 
-                    <!-- Gemini 로그 -->
-                    <div class="flex-1 bg-gray-900 rounded-lg p-4 overflow-y-auto font-mono text-sm" id="geminiLogArea">
+                    <!-- 검수 로그 -->
+                    <div class="flex-1 bg-gray-900 rounded-lg p-4 overflow-y-auto font-mono text-sm min-h-[150px]" id="reviewLogArea">
                         <p class="text-gray-500">검수 로그가 여기에 표시됩니다...</p>
                     </div>
                 </div>

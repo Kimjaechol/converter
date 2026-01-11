@@ -11,8 +11,8 @@ contextBridge.exposeInMainWorld('lawpro', {
     // ========================================
     // 문서 변환
     // ========================================
-    startConversion: (folderPath, apiKey) =>
-        ipcRenderer.invoke('start-conversion', { folderPath, apiKey }),
+    startConversion: (folderPath, apiKey, generateClean, generateMarkdown) =>
+        ipcRenderer.invoke('start-conversion', { folderPath, apiKey, generateClean, generateMarkdown }),
 
     stopConversion: () =>
         ipcRenderer.invoke('stop-conversion'),
@@ -55,6 +55,45 @@ contextBridge.exposeInMainWorld('lawpro', {
         ipcRenderer.on('gemini-log', handler);
         return () => ipcRenderer.removeListener('gemini-log', handler);
     },
+
+    // ========================================
+    // OpenAI 설정 및 실행
+    // ========================================
+    saveOpenaiKey: (key) =>
+        ipcRenderer.invoke('save-openai-key', key),
+
+    getOpenaiKey: () =>
+        ipcRenderer.invoke('get-openai-key'),
+
+    setOpenaiModel: (model) =>
+        ipcRenderer.invoke('set-openai-model', model),
+
+    getOpenaiModel: () =>
+        ipcRenderer.invoke('get-openai-model'),
+
+    runOpenaiReview: (folderPath) =>
+        ipcRenderer.invoke('run-openai-review', { folderPath }),
+
+    onOpenaiLog: (callback) => {
+        const handler = (event, data) => callback(data);
+        ipcRenderer.on('openai-log', handler);
+        return () => ipcRenderer.removeListener('openai-log', handler);
+    },
+
+    // ========================================
+    // AI 선택 및 출력 옵션
+    // ========================================
+    setSelectedAI: (ai) =>
+        ipcRenderer.invoke('set-selected-ai', ai),
+
+    getSelectedAI: () =>
+        ipcRenderer.invoke('get-selected-ai'),
+
+    setOutputOptions: (generateClean, generateMarkdown) =>
+        ipcRenderer.invoke('set-output-options', { generateClean, generateMarkdown }),
+
+    getOutputOptions: () =>
+        ipcRenderer.invoke('get-output-options'),
 
     // ========================================
     // Upstage 설정
