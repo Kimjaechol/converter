@@ -16,6 +16,9 @@ const os = require('os');
 const { spawn, execSync } = require('child_process');
 const Store = require('electron-store');
 
+// 환경변수 로드 (.env 파일)
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+
 // ============================================================
 // 설정 저장소
 // ============================================================
@@ -541,15 +544,20 @@ ipcMain.handle('get-output-options', async () => {
 });
 
 // ============================================================
-// IPC 핸들러: Upstage API 키
+// IPC 핸들러: Upstage API 키 (관리자 전용 - 환경변수 우선)
 // ============================================================
 ipcMain.handle('save-upstage-key', async (event, key) => {
+    // 환경변수가 설정되어 있으면 저장 불가
+    if (process.env.UPSTAGE_API_KEY) {
+        return { success: false, error: 'Environment variable is set' };
+    }
     store.set('upstageKey', key);
     return { success: true };
 });
 
 ipcMain.handle('get-upstage-key', async () => {
-    return store.get('upstageKey', '');
+    // 환경변수 우선, 없으면 저장된 값 사용
+    return process.env.UPSTAGE_API_KEY || store.get('upstageKey', '');
 });
 
 // ============================================================
