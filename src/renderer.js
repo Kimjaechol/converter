@@ -21,7 +21,9 @@ const state = {
 const editorState = {
     currentFile: null,      // 현재 열린 파일 경로
     currentType: 'html',    // html 또는 markdown
-    isModified: false       // 수정 여부
+    isModified: false,      // 수정 여부
+    viewMode: 'visual',     // visual 또는 code
+    selectedCell: null      // 현재 선택된 표 셀
 };
 
 // ============================================================
@@ -117,10 +119,37 @@ const elements = {
     markdownEditorPanel: document.getElementById('markdownEditorPanel'),
     htmlCodeEditor: document.getElementById('htmlCodeEditor'),
     htmlPreview: document.getElementById('htmlPreview'),
-    htmlFormat: document.getElementById('htmlFormat'),
     htmlRefresh: document.getElementById('htmlRefresh'),
     mdCodeEditor: document.getElementById('mdCodeEditor'),
-    mdPreview: document.getElementById('mdPreview')
+    mdPreview: document.getElementById('mdPreview'),
+
+    // WYSIWYG 에디터 요소
+    visualEditor: document.getElementById('visualEditor'),
+    visualEditorWrapper: document.getElementById('visualEditorWrapper'),
+    codeEditorWrapper: document.getElementById('codeEditorWrapper'),
+    btnVisualView: document.getElementById('btnVisualView'),
+    btnCodeView: document.getElementById('btnCodeView'),
+    fontSizeSelect: document.getElementById('fontSizeSelect'),
+    btnBold: document.getElementById('btnBold'),
+    btnItalic: document.getElementById('btnItalic'),
+    btnUnderline: document.getElementById('btnUnderline'),
+    btnAlignLeft: document.getElementById('btnAlignLeft'),
+    btnAlignCenter: document.getElementById('btnAlignCenter'),
+    btnAlignRight: document.getElementById('btnAlignRight'),
+    btnAddRowAbove: document.getElementById('btnAddRowAbove'),
+    btnAddRowBelow: document.getElementById('btnAddRowBelow'),
+    btnAddColLeft: document.getElementById('btnAddColLeft'),
+    btnAddColRight: document.getElementById('btnAddColRight'),
+    btnDeleteRow: document.getElementById('btnDeleteRow'),
+    btnDeleteCol: document.getElementById('btnDeleteCol'),
+    btnMergeCells: document.getElementById('btnMergeCells'),
+    btnSplitCell: document.getElementById('btnSplitCell'),
+    btnBorderTop: document.getElementById('btnBorderTop'),
+    btnBorderBottom: document.getElementById('btnBorderBottom'),
+    btnBorderLeft: document.getElementById('btnBorderLeft'),
+    btnBorderRight: document.getElementById('btnBorderRight'),
+    btnBorderAll: document.getElementById('btnBorderAll'),
+    btnBorderNone: document.getElementById('btnBorderNone')
 };
 
 // ============================================================
@@ -854,26 +883,39 @@ function setupCreditEventListeners() {
 // 에디터 기능
 // ============================================================
 function setupEditorEventListeners() {
-    // 파일 열기
+    // 파일 열기/저장
     elements.editorOpenFile?.addEventListener('click', openEditorFile);
-
-    // 파일 저장
     elements.editorSaveFile?.addEventListener('click', saveEditorFile);
 
     // 탭 전환
     elements.tabHtml?.addEventListener('click', () => switchEditorTab('html'));
     elements.tabMarkdown?.addEventListener('click', () => switchEditorTab('markdown'));
 
-    // HTML 코드 변경 시 미리보기 업데이트 (debounce)
+    // 뷰 모드 전환
+    elements.btnVisualView?.addEventListener('click', () => switchViewMode('visual'));
+    elements.btnCodeView?.addEventListener('click', () => switchViewMode('code'));
+
+    // 비주얼 에디터 변경 감지
+    elements.visualEditor?.addEventListener('input', () => {
+        editorState.isModified = true;
+        elements.editorSaveFile.disabled = false;
+        syncVisualToCode();
+        updateHtmlPreview();
+    });
+
+    // 코드 에디터 변경 감지
     let htmlTimeout;
     elements.htmlCodeEditor?.addEventListener('input', () => {
         editorState.isModified = true;
         elements.editorSaveFile.disabled = false;
         clearTimeout(htmlTimeout);
-        htmlTimeout = setTimeout(updateHtmlPreview, 500);
+        htmlTimeout = setTimeout(() => {
+            syncCodeToVisual();
+            updateHtmlPreview();
+        }, 500);
     });
 
-    // Markdown 코드 변경 시 미리보기 업데이트 (debounce)
+    // Markdown 에디터
     let mdTimeout;
     elements.mdCodeEditor?.addEventListener('input', () => {
         editorState.isModified = true;
@@ -882,11 +924,265 @@ function setupEditorEventListeners() {
         mdTimeout = setTimeout(updateMarkdownPreview, 300);
     });
 
-    // HTML 정리 버튼
-    elements.htmlFormat?.addEventListener('click', formatHtml);
-
-    // HTML 새로고침 버튼
+    // 새로고침 버튼
     elements.htmlRefresh?.addEventListener('click', updateHtmlPreview);
+
+    // 텍스트 서식
+    elements.fontSizeSelect?.addEventListener('change', (e) => {
+        if (e.target.value) {
+            execCommand('fontSize', e.target.value);
+            e.target.value = '';
+        }
+    });
+    elements.btnBold?.addEventListener('click', () => execCommand('bold'));
+    elements.btnItalic?.addEventListener('click', () => execCommand('italic'));
+    elements.btnUnderline?.addEventListener('click', () => execCommand('underline'));
+
+    // 정렬
+    elements.btnAlignLeft?.addEventListener('click', () => execCommand('justifyLeft'));
+    elements.btnAlignCenter?.addEventListener('click', () => execCommand('justifyCenter'));
+    elements.btnAlignRight?.addEventListener('click', () => execCommand('justifyRight'));
+
+    // 표 편집
+    elements.btnAddRowAbove?.addEventListener('click', () => tableAction('addRowAbove'));
+    elements.btnAddRowBelow?.addEventListener('click', () => tableAction('addRowBelow'));
+    elements.btnAddColLeft?.addEventListener('click', () => tableAction('addColLeft'));
+    elements.btnAddColRight?.addEventListener('click', () => tableAction('addColRight'));
+    elements.btnDeleteRow?.addEventListener('click', () => tableAction('deleteRow'));
+    elements.btnDeleteCol?.addEventListener('click', () => tableAction('deleteCol'));
+    elements.btnMergeCells?.addEventListener('click', () => tableAction('mergeCells'));
+    elements.btnSplitCell?.addEventListener('click', () => tableAction('splitCell'));
+
+    // 테두리 편집
+    elements.btnBorderTop?.addEventListener('click', () => borderAction('top'));
+    elements.btnBorderBottom?.addEventListener('click', () => borderAction('bottom'));
+    elements.btnBorderLeft?.addEventListener('click', () => borderAction('left'));
+    elements.btnBorderRight?.addEventListener('click', () => borderAction('right'));
+    elements.btnBorderAll?.addEventListener('click', () => borderAction('all'));
+    elements.btnBorderNone?.addEventListener('click', () => borderAction('none'));
+
+    // 셀 선택 추적
+    elements.visualEditor?.addEventListener('click', (e) => {
+        const cell = e.target.closest('td, th');
+        if (cell) {
+            editorState.selectedCell = cell;
+            highlightSelectedCell(cell);
+        }
+    });
+}
+
+// 뷰 모드 전환
+function switchViewMode(mode) {
+    editorState.viewMode = mode;
+
+    if (mode === 'visual') {
+        elements.btnVisualView.classList.add('bg-primary-600', 'text-white');
+        elements.btnVisualView.classList.remove('bg-gray-700', 'text-gray-300');
+        elements.btnCodeView.classList.remove('bg-primary-600', 'text-white');
+        elements.btnCodeView.classList.add('bg-gray-700', 'text-gray-300');
+        elements.visualEditorWrapper.classList.remove('hidden');
+        elements.codeEditorWrapper.classList.add('hidden');
+        syncCodeToVisual();
+    } else {
+        elements.btnCodeView.classList.add('bg-primary-600', 'text-white');
+        elements.btnCodeView.classList.remove('bg-gray-700', 'text-gray-300');
+        elements.btnVisualView.classList.remove('bg-primary-600', 'text-white');
+        elements.btnVisualView.classList.add('bg-gray-700', 'text-gray-300');
+        elements.codeEditorWrapper.classList.remove('hidden');
+        elements.visualEditorWrapper.classList.add('hidden');
+        syncVisualToCode();
+    }
+}
+
+// 비주얼 → 코드 동기화
+function syncVisualToCode() {
+    if (elements.visualEditor && elements.htmlCodeEditor) {
+        elements.htmlCodeEditor.value = elements.visualEditor.innerHTML;
+    }
+}
+
+// 코드 → 비주얼 동기화
+function syncCodeToVisual() {
+    if (elements.visualEditor && elements.htmlCodeEditor) {
+        elements.visualEditor.innerHTML = elements.htmlCodeEditor.value;
+    }
+}
+
+// execCommand 래퍼
+function execCommand(command, value = null) {
+    elements.visualEditor?.focus();
+    document.execCommand(command, false, value);
+    editorState.isModified = true;
+    elements.editorSaveFile.disabled = false;
+    syncVisualToCode();
+    updateHtmlPreview();
+}
+
+// 현재 선택된 셀 찾기
+function getSelectedCell() {
+    const selection = window.getSelection();
+    if (selection.rangeCount > 0) {
+        let node = selection.anchorNode;
+        while (node && node !== elements.visualEditor) {
+            if (node.nodeName === 'TD' || node.nodeName === 'TH') {
+                return node;
+            }
+            node = node.parentNode;
+        }
+    }
+    return editorState.selectedCell;
+}
+
+// 셀 하이라이트
+function highlightSelectedCell(cell) {
+    // 기존 하이라이트 제거
+    elements.visualEditor?.querySelectorAll('td, th').forEach(c => {
+        c.style.outline = '';
+    });
+    if (cell) {
+        cell.style.outline = '2px solid #6366f1';
+    }
+}
+
+// 표 편집 액션
+function tableAction(action) {
+    const cell = getSelectedCell();
+    if (!cell) {
+        alert('표의 셀을 먼저 선택해주세요');
+        return;
+    }
+
+    const row = cell.closest('tr');
+    const table = cell.closest('table');
+    if (!row || !table) return;
+
+    const cellIndex = Array.from(row.cells).indexOf(cell);
+    const rowIndex = Array.from(table.rows).indexOf(row);
+
+    switch (action) {
+        case 'addRowAbove': {
+            const newRow = table.insertRow(rowIndex);
+            for (let i = 0; i < row.cells.length; i++) {
+                const newCell = newRow.insertCell();
+                newCell.innerHTML = '&nbsp;';
+                newCell.style.border = '1px solid #ccc';
+            }
+            break;
+        }
+        case 'addRowBelow': {
+            const newRow = table.insertRow(rowIndex + 1);
+            for (let i = 0; i < row.cells.length; i++) {
+                const newCell = newRow.insertCell();
+                newCell.innerHTML = '&nbsp;';
+                newCell.style.border = '1px solid #ccc';
+            }
+            break;
+        }
+        case 'addColLeft': {
+            Array.from(table.rows).forEach(r => {
+                const newCell = r.insertCell(cellIndex);
+                newCell.innerHTML = '&nbsp;';
+                newCell.style.border = '1px solid #ccc';
+            });
+            break;
+        }
+        case 'addColRight': {
+            Array.from(table.rows).forEach(r => {
+                const newCell = r.insertCell(cellIndex + 1);
+                newCell.innerHTML = '&nbsp;';
+                newCell.style.border = '1px solid #ccc';
+            });
+            break;
+        }
+        case 'deleteRow': {
+            if (table.rows.length > 1) {
+                table.deleteRow(rowIndex);
+            }
+            break;
+        }
+        case 'deleteCol': {
+            if (row.cells.length > 1) {
+                Array.from(table.rows).forEach(r => {
+                    if (r.cells[cellIndex]) {
+                        r.deleteCell(cellIndex);
+                    }
+                });
+            }
+            break;
+        }
+        case 'mergeCells': {
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+                // 간단한 병합: colspan 증가
+                const colspan = parseInt(cell.getAttribute('colspan') || 1);
+                cell.setAttribute('colspan', colspan + 1);
+                // 오른쪽 셀 삭제
+                if (row.cells[cellIndex + colspan]) {
+                    row.deleteCell(cellIndex + colspan);
+                }
+            }
+            break;
+        }
+        case 'splitCell': {
+            const colspan = parseInt(cell.getAttribute('colspan') || 1);
+            if (colspan > 1) {
+                cell.setAttribute('colspan', colspan - 1);
+                const newCell = row.insertCell(cellIndex + 1);
+                newCell.innerHTML = '&nbsp;';
+                newCell.style.border = '1px solid #ccc';
+            }
+            break;
+        }
+    }
+
+    editorState.isModified = true;
+    elements.editorSaveFile.disabled = false;
+    syncVisualToCode();
+    updateHtmlPreview();
+}
+
+// 테두리 편집 액션
+function borderAction(side) {
+    const cell = getSelectedCell();
+    if (!cell) {
+        alert('표의 셀을 먼저 선택해주세요');
+        return;
+    }
+
+    const borderStyle = '1px solid #000';
+    const noBorder = 'none';
+
+    switch (side) {
+        case 'top':
+            cell.style.borderTop = cell.style.borderTop === noBorder ? borderStyle : noBorder;
+            break;
+        case 'bottom':
+            cell.style.borderBottom = cell.style.borderBottom === noBorder ? borderStyle : noBorder;
+            break;
+        case 'left':
+            cell.style.borderLeft = cell.style.borderLeft === noBorder ? borderStyle : noBorder;
+            break;
+        case 'right':
+            cell.style.borderRight = cell.style.borderRight === noBorder ? borderStyle : noBorder;
+            break;
+        case 'all':
+            cell.style.borderTop = borderStyle;
+            cell.style.borderBottom = borderStyle;
+            cell.style.borderLeft = borderStyle;
+            cell.style.borderRight = borderStyle;
+            break;
+        case 'none':
+            cell.style.borderTop = noBorder;
+            cell.style.borderBottom = noBorder;
+            cell.style.borderLeft = noBorder;
+            cell.style.borderRight = noBorder;
+            break;
+    }
+
+    editorState.isModified = true;
+    elements.editorSaveFile.disabled = false;
+    syncVisualToCode();
+    updateHtmlPreview();
 }
 
 async function openEditorFile() {
@@ -908,6 +1204,7 @@ async function openEditorFile() {
         } else {
             switchEditorTab('html');
             elements.htmlCodeEditor.value = file.content;
+            elements.visualEditor.innerHTML = file.content;
             updateHtmlPreview();
         }
     } catch (err) {
@@ -916,13 +1213,17 @@ async function openEditorFile() {
 }
 
 async function saveEditorFile() {
-    if (!editorState.currentFile) {
-        // 새 파일로 저장
-        const content = editorState.currentType === 'markdown'
-            ? elements.mdCodeEditor.value
-            : elements.htmlCodeEditor.value;
-        const defaultName = editorState.currentType === 'markdown' ? 'document.md' : 'document.html';
+    // 비주얼 모드면 먼저 동기화
+    if (editorState.viewMode === 'visual') {
+        syncVisualToCode();
+    }
 
+    const content = editorState.currentType === 'markdown'
+        ? elements.mdCodeEditor.value
+        : elements.htmlCodeEditor.value;
+
+    if (!editorState.currentFile) {
+        const defaultName = editorState.currentType === 'markdown' ? 'document.md' : 'document.html';
         try {
             const result = await window.lawpro.editorSaveAs(content, defaultName);
             if (result) {
@@ -936,11 +1237,6 @@ async function saveEditorFile() {
             alert('저장 실패: ' + err.message);
         }
     } else {
-        // 기존 파일 저장
-        const content = editorState.currentType === 'markdown'
-            ? elements.mdCodeEditor.value
-            : elements.htmlCodeEditor.value;
-
         try {
             await window.lawpro.editorSaveFile(editorState.currentFile, content);
             editorState.isModified = false;
@@ -955,7 +1251,6 @@ async function saveEditorFile() {
 function switchEditorTab(tab) {
     editorState.currentType = tab;
 
-    // 탭 스타일 업데이트
     if (tab === 'html') {
         elements.tabHtml.classList.add('border-primary-500', 'text-primary-400');
         elements.tabHtml.classList.remove('border-transparent', 'text-gray-400');
@@ -976,57 +1271,26 @@ function switchEditorTab(tab) {
 }
 
 function updateHtmlPreview() {
-    const html = elements.htmlCodeEditor.value;
+    const html = editorState.viewMode === 'visual'
+        ? elements.visualEditor?.innerHTML || ''
+        : elements.htmlCodeEditor?.value || '';
+
     const iframe = elements.htmlPreview;
-
-    // iframe에 HTML 렌더링
-    const doc = iframe.contentDocument || iframe.contentWindow.document;
-    doc.open();
-    doc.write(html);
-    doc.close();
-}
-
-function updateMarkdownPreview() {
-    const md = elements.mdCodeEditor.value;
-
-    // marked.js로 Markdown 파싱
-    if (typeof marked !== 'undefined') {
-        elements.mdPreview.innerHTML = marked.parse(md);
-    } else {
-        // marked가 로드되지 않은 경우 기본 텍스트로 표시
-        elements.mdPreview.textContent = md;
+    if (iframe) {
+        const doc = iframe.contentDocument || iframe.contentWindow.document;
+        doc.open();
+        doc.write(html);
+        doc.close();
     }
 }
 
-function formatHtml() {
-    const html = elements.htmlCodeEditor.value;
-
-    // 간단한 HTML 정리 (들여쓰기)
-    let formatted = '';
-    let indent = 0;
-    const lines = html.replace(/>\s*</g, '>\n<').split('\n');
-
-    lines.forEach(line => {
-        line = line.trim();
-        if (!line) return;
-
-        // 닫는 태그면 들여쓰기 감소
-        if (line.match(/^<\/\w/)) {
-            indent = Math.max(0, indent - 1);
-        }
-
-        formatted += '  '.repeat(indent) + line + '\n';
-
-        // 여는 태그 (self-closing 아닌 경우)
-        if (line.match(/^<\w[^>]*[^\/]>/) && !line.match(/^<(br|hr|img|input|meta|link)/i)) {
-            indent++;
-        }
-    });
-
-    elements.htmlCodeEditor.value = formatted.trim();
-    editorState.isModified = true;
-    elements.editorSaveFile.disabled = false;
-    updateHtmlPreview();
+function updateMarkdownPreview() {
+    const md = elements.mdCodeEditor?.value || '';
+    if (typeof marked !== 'undefined' && elements.mdPreview) {
+        elements.mdPreview.innerHTML = marked.parse(md);
+    } else if (elements.mdPreview) {
+        elements.mdPreview.textContent = md;
+    }
 }
 
 // ============================================================
