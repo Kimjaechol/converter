@@ -300,48 +300,74 @@ function setupEventListeners() {
     elements.stopConvert.addEventListener('click', stopConversion);
 
     // 출력 옵션 저장
-    elements.chkCleanHtml.addEventListener('change', saveOutputOptions);
-    elements.chkMarkdown.addEventListener('change', saveOutputOptions);
+    if (elements.chkCleanHtml) {
+        elements.chkCleanHtml.addEventListener('change', saveOutputOptions);
+    }
+    if (elements.chkMarkdown) {
+        elements.chkMarkdown.addEventListener('change', saveOutputOptions);
+    }
 
     // API 키 저장
-    elements.saveUpstageKey.addEventListener('click', saveUpstageKey);
+    if (elements.saveUpstageKey) {
+        elements.saveUpstageKey.addEventListener('click', saveUpstageKey);
+    }
     if (elements.settingsSaveUpstage) {
         elements.settingsSaveUpstage.addEventListener('click', saveUpstageKeyFromSettings);
     }
-    elements.saveGeminiKey.addEventListener('click', saveGeminiKey);
+    if (elements.saveGeminiKey) {
+        elements.saveGeminiKey.addEventListener('click', saveGeminiKey);
+    }
     if (elements.settingsSaveGemini) {
         elements.settingsSaveGemini.addEventListener('click', saveGeminiKeyFromSettings);
     }
-    elements.saveOpenaiKey.addEventListener('click', saveOpenaiKey);
+    if (elements.saveOpenaiKey) {
+        elements.saveOpenaiKey.addEventListener('click', saveOpenaiKey);
+    }
 
     // Claude 연결
-    elements.connectClaude.addEventListener('click', connectClaude);
+    if (elements.connectClaude) {
+        elements.connectClaude.addEventListener('click', connectClaude);
+    }
     if (elements.settingsConnectClaude) {
         elements.settingsConnectClaude.addEventListener('click', connectClaude);
     }
 
     // 모델 변경
-    elements.geminiModelSelect.addEventListener('change', async () => {
-        await window.lawpro.setGeminiModel(elements.geminiModelSelect.value);
-    });
-    elements.openaiModelSelect.addEventListener('change', async () => {
-        await window.lawpro.setOpenaiModel(elements.openaiModelSelect.value);
-    });
+    if (elements.geminiModelSelect) {
+        elements.geminiModelSelect.addEventListener('change', async () => {
+            await window.lawpro.setGeminiModel(elements.geminiModelSelect.value);
+        });
+    }
+    if (elements.openaiModelSelect) {
+        elements.openaiModelSelect.addEventListener('change', async () => {
+            await window.lawpro.setOpenaiModel(elements.openaiModelSelect.value);
+        });
+    }
 
     // 검수 폴더 선택
-    elements.selectReviewFolder.addEventListener('click', selectReviewFolder);
-    elements.startReview.addEventListener('click', startReview);
+    if (elements.selectReviewFolder) {
+        elements.selectReviewFolder.addEventListener('click', selectReviewFolder);
+    }
+    if (elements.startReview) {
+        elements.startReview.addEventListener('click', startReview);
+    }
 
     // 로그 지우기
-    elements.clearLog.addEventListener('click', () => {
-        elements.logArea.innerHTML = '<p class="text-gray-500">대기 중...</p>';
-    });
+    if (elements.clearLog) {
+        elements.clearLog.addEventListener('click', () => {
+            elements.logArea.innerHTML = '<p class="text-gray-500">대기 중...</p>';
+        });
+    }
 
     // 출력 폴더 열기
-    elements.openOutputFolder.addEventListener('click', openOutputFolder);
+    if (elements.openOutputFolder) {
+        elements.openOutputFolder.addEventListener('click', openOutputFolder);
+    }
 
     // 패키지 설치
-    elements.installDeps.addEventListener('click', installPackages);
+    if (elements.installDeps) {
+        elements.installDeps.addEventListener('click', installPackages);
+    }
 }
 
 function setupDropZone() {
