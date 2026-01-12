@@ -13,11 +13,17 @@ import os
 import json
 import hashlib
 import secrets
+import random
+import tempfile
+import shutil
+import threading
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
+from collections import deque
 
-from fastapi import FastAPI, HTTPException, Depends, Query, Header
+import httpx
+from fastapi import FastAPI, HTTPException, Depends, Query, Header, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -42,6 +48,18 @@ ADMIN_SECRET = os.getenv("ADMIN_SECRET", "change-this-secret-key")
 JWT_SECRET = os.getenv("JWT_SECRET", "jwt-secret-key-change-in-production")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
+
+# === Document Conversion API 설정 ===
+UPSTAGE_API_KEY = os.getenv("UPSTAGE_API_KEY", "")
+UPSTAGE_API_URL = "https://api.upstage.ai/v1/document-ai/document-parse"
+
+# === Proxy 설정 (Decodo 등) ===
+PROXY_HOST = os.getenv("PROXY_HOST", "")
+PROXY_USERNAME = os.getenv("PROXY_USERNAME", "")
+PROXY_PASSWORD = os.getenv("PROXY_PASSWORD", "")
+PROXY_PORT_START = int(os.getenv("PROXY_PORT_START", "0") or "0")
+PROXY_PORT_END = int(os.getenv("PROXY_PORT_END", "0") or "0")
+PROXY_MODE = os.getenv("PROXY_MODE", "round_robin")
 
 # LLM 컨텍스트 제한 설정 (토큰 기준)
 LLM_CONTEXT_LIMITS = {
@@ -212,7 +230,16 @@ if os.path.exists(STATIC_DIR):
 # ============================================================
 @app.get("/")
 async def root():
-    return {"status": "ok", "service": "LawPro Admin API", "version": "1.0.0"}
+    """랜딩 페이지 (홍보/다운로드)"""
+    index_html = os.path.join(STATIC_DIR, "index.html")
+    if os.path.exists(index_html):
+        return FileResponse(index_html)
+    return {"status": "ok", "service": "LawPro Converter API", "version": "1.0.0"}
+
+@app.get("/api")
+async def api_root():
+    """API 상태 확인"""
+    return {"status": "ok", "service": "LawPro Converter API", "version": "1.0.0"}
 
 @app.get("/admin")
 async def admin_page():
@@ -981,6 +1008,238 @@ async def mark_pattern_used(original: str, corrected: str, source: Optional[str]
 
     except Exception as e:
         raise HTTPException(500, f"Database error: {str(e)}")
+
+
+# ============================================================
+# 프록시 매니저 (다중 사용자 지원)
+# ============================================================
+class ServerProxyManager:
+    """서버용 프록시 매니저 (Decodo 등)"""
+
+    def __init__(self):
+        self.proxies: List[str] = []
+        self.proxy_index = 0
+        self.lock = threading.Lock()
+        self._init_proxies()
+
+    def _init_proxies(self):
+        """환경변수에서 프록시 목록 생성"""
+        if all([PROXY_HOST, PROXY_USERNAME, PROXY_PASSWORD, PROXY_PORT_START, PROXY_PORT_END]):
+            for port in range(PROXY_PORT_START, PROXY_PORT_END + 1):
+                proxy_url = f"http://{PROXY_USERNAME}:{PROXY_PASSWORD}@{PROXY_HOST}:{port}"
+                self.proxies.append(proxy_url)
+            print(f"[ProxyManager] {len(self.proxies)}개 프록시 로드됨 (포트 {PROXY_PORT_START}-{PROXY_PORT_END})")
+
+    def get_proxy(self) -> Optional[str]:
+        """다음 프록시 URL 반환 (라운드 로빈)"""
+        if not self.proxies:
+            return None
+
+        with self.lock:
+            if PROXY_MODE == "random":
+                proxy = random.choice(self.proxies)
+            else:  # round_robin
+                proxy = self.proxies[self.proxy_index]
+                self.proxy_index = (self.proxy_index + 1) % len(self.proxies)
+            return proxy
+
+    def get_httpx_proxy(self) -> Optional[Dict]:
+        """httpx용 프록시 설정 반환"""
+        proxy = self.get_proxy()
+        if proxy:
+            return {"http://": proxy, "https://": proxy}
+        return None
+
+# 싱글톤 프록시 매니저
+proxy_manager = ServerProxyManager()
+
+
+# ============================================================
+# 문서 변환 API (클라이언트용)
+# ============================================================
+class ConversionRequest(BaseModel):
+    """변환 요청 정보"""
+    file_name: str
+    user_id: Optional[str] = None
+    session_id: Optional[str] = None
+
+class ConversionResponse(BaseModel):
+    """변환 응답"""
+    success: bool
+    html: Optional[str] = None
+    error: Optional[str] = None
+    pages: int = 0
+    method: str = "upstage"
+
+
+@app.post("/api/convert", response_model=ConversionResponse)
+async def convert_document(
+    file: UploadFile = File(...),
+    user_id: Optional[str] = None,
+    session_id: Optional[str] = None
+):
+    """
+    문서 변환 API
+
+    클라이언트에서 파일을 업로드하면 서버에서 Upstage API를 호출하고 결과 반환.
+    - API 키는 서버에만 저장 (보안)
+    - 프록시를 통해 다중 사용자 지원
+
+    지원 형식: PDF, 이미지 (JPG, PNG)
+    """
+    if not UPSTAGE_API_KEY:
+        raise HTTPException(500, "Server not configured: UPSTAGE_API_KEY missing")
+
+    # 파일 확장자 확인
+    filename = file.filename or "document"
+    ext = os.path.splitext(filename)[1].lower()
+
+    if ext not in ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff']:
+        raise HTTPException(400, f"Unsupported file format: {ext}")
+
+    # 임시 파일로 저장
+    temp_dir = tempfile.mkdtemp(prefix='lawpro_convert_')
+    temp_path = os.path.join(temp_dir, filename)
+
+    try:
+        # 파일 저장
+        with open(temp_path, 'wb') as f:
+            content = await file.read()
+            f.write(content)
+
+        # Upstage API 호출
+        html_result, page_count, error = await call_upstage_api(temp_path, filename)
+
+        if error:
+            return ConversionResponse(
+                success=False,
+                error=error,
+                pages=0
+            )
+
+        return ConversionResponse(
+            success=True,
+            html=html_result,
+            pages=page_count,
+            method="upstage"
+        )
+
+    finally:
+        # 임시 파일 정리
+        try:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        except:
+            pass
+
+
+async def call_upstage_api(file_path: str, filename: str) -> tuple:
+    """
+    Upstage Document Parse API 호출
+
+    Returns:
+        (html_content, page_count, error_message)
+    """
+    headers = {
+        "Authorization": f"Bearer {UPSTAGE_API_KEY}"
+    }
+
+    data = {
+        "ocr": "force",
+        "output_formats": '["html"]',
+        "model": "document-parse",
+        "coordinates": "false"
+    }
+
+    # 프록시 설정
+    proxies = proxy_manager.get_httpx_proxy()
+
+    max_retries = 3
+    retry_delays = [10, 30, 60]  # 429 에러 시 대기 시간
+
+    for attempt in range(max_retries):
+        try:
+            async with httpx.AsyncClient(proxies=proxies, timeout=300) as client:
+                with open(file_path, 'rb') as f:
+                    files = {'document': (filename, f)}
+
+                    response = await client.post(
+                        UPSTAGE_API_URL,
+                        headers=headers,
+                        data=data,
+                        files=files
+                    )
+
+                # 429 Too Many Requests
+                if response.status_code == 429:
+                    if attempt < max_retries - 1:
+                        wait_time = retry_delays[attempt]
+                        print(f"[Upstage] 429 에러 - {wait_time}초 대기 후 재시도 ({attempt + 1}/{max_retries})")
+                        await asyncio.sleep(wait_time)
+                        continue
+                    return None, 0, "Rate limit exceeded. Please try again later."
+
+                # 400 Bad Request
+                if response.status_code == 400:
+                    try:
+                        error_detail = response.json()
+                        error_msg = error_detail.get('message', error_detail.get('error', str(error_detail)))
+                    except:
+                        error_msg = response.text[:200]
+                    return None, 0, f"Bad request: {error_msg}"
+
+                # 500+ Server Error
+                if response.status_code >= 500:
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(5)
+                        continue
+                    return None, 0, f"Server error: {response.status_code}"
+
+                response.raise_for_status()
+                result = response.json()
+
+                # HTML 추출
+                html_content = None
+                if 'content' in result and 'html' in result['content']:
+                    html_content = result['content']['html']
+                elif 'html' in result:
+                    html_content = result['html']
+                elif 'text' in result:
+                    html_content = f"<p>{result['text']}</p>"
+
+                # 페이지 수 (응답에 포함된 경우)
+                page_count = result.get('page_count', 1)
+
+                return html_content, page_count, None
+
+        except httpx.TimeoutException:
+            if attempt < max_retries - 1:
+                continue
+            return None, 0, "Request timeout (5min)"
+
+        except httpx.ConnectError as e:
+            if attempt < max_retries - 1:
+                await asyncio.sleep(5)
+                continue
+            return None, 0, f"Connection error: {str(e)}"
+
+        except Exception as e:
+            return None, 0, f"Unexpected error: {str(e)}"
+
+    return None, 0, "Max retries exceeded"
+
+
+@app.get("/api/convert/status")
+async def conversion_status():
+    """변환 서비스 상태 확인"""
+    return {
+        "available": bool(UPSTAGE_API_KEY),
+        "proxy_enabled": len(proxy_manager.proxies) > 0,
+        "proxy_count": len(proxy_manager.proxies)
+    }
+
+
+# asyncio import 추가
+import asyncio
 
 
 # ============================================================

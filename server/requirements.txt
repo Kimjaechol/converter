@@ -7,7 +7,7 @@ starlette>=0.36.0,<0.46.0
 
 # Database (Supabase)
 supabase>=2.3.0,<2.4.0
-httpx>=0.24.0,<0.25.0
+httpx>=0.24.0
 
 # Authentication
 python-jose[cryptography]>=3.3.0
