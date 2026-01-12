@@ -48,6 +48,13 @@ try:
 except ImportError:
     HAS_RATE_LIMITER = False
 
+# Proxy Manager (다중 사용자 프록시 관리)
+try:
+    from proxy_manager import get_proxy_manager
+    HAS_PROXY_MANAGER = True
+except ImportError:
+    HAS_PROXY_MANAGER = False
+
 
 class FileProcessor:
     """하이브리드 문서 처리기"""
@@ -103,6 +110,12 @@ class FileProcessor:
             self.rate_limiter = get_rate_limiter()
         else:
             self.rate_limiter = None
+
+        # Proxy Manager 초기화 (다중 사용자 프록시 지원)
+        if HAS_PROXY_MANAGER:
+            self.proxy_manager = get_proxy_manager()
+        else:
+            self.proxy_manager = None
 
     def process(self, file_path: str) -> Dict[str, Any]:
         """
@@ -929,6 +942,14 @@ class FileProcessor:
         other_retry_count = 0
         max_other_retries = 3
 
+        # 프록시 설정 (다중 사용자 지원)
+        proxy_url = None
+        proxies_dict = {}
+        if self.proxy_manager:
+            proxy_url = self.proxy_manager.get_proxy()
+            if proxy_url:
+                proxies_dict = self.proxy_manager.get_requests_proxies_dict(proxy_url)
+
         while True:
             try:
                 # === 쿨다운 체크 (잔여 시간만 대기) ===
@@ -951,16 +972,24 @@ class FileProcessor:
                 with open(file_path, "rb") as f:
                     files = {"document": (filename, f)}
 
+                    # API 호출 (프록시 사용 시 proxies 파라미터 추가)
+                    request_kwargs = {
+                        "headers": headers,
+                        "data": data,
+                        "files": files,
+                        "timeout": 300
+                    }
+                    if proxies_dict:
+                        request_kwargs["proxies"] = proxies_dict
+
                     response = requests.post(
                         self.UPSTAGE_API_URL,
-                        headers=headers,
-                        data=data,
-                        files=files,
-                        timeout=300
+                        **request_kwargs
                     )
 
                 # === 429 Too Many Requests ===
                 if response.status_code == 429:
+                    # 프록시 실패 보고 (Rate Limit은 서버 측 문제이므로 프록시 실패로 간주하지 않음)
                     if self.rate_limiter:
                         # Rate Limit 분석 및 학습
                         analysis = self.rate_limiter.record_429_error()
@@ -1008,6 +1037,10 @@ class FileProcessor:
                     # Rate Limit 학습 데이터 기록
                     self.rate_limiter.record_success()
 
+                # 프록시 성공 보고
+                if self.proxy_manager and proxy_url:
+                    self.proxy_manager.report_success(proxy_url)
+
                 # HTML 추출
                 if 'content' in result and 'html' in result['content']:
                     return result['content']['html']
@@ -1020,13 +1053,19 @@ class FileProcessor:
 
             except requests.exceptions.Timeout:
                 other_retry_count += 1
+                # 프록시 실패 보고 (타임아웃은 프록시 문제일 수 있음)
+                if self.proxy_manager and proxy_url:
+                    self.proxy_manager.report_failure(proxy_url, "timeout")
                 if other_retry_count <= max_other_retries:
                     time_module.sleep(10)
                     continue
                 return "<p>API 요청 타임아웃 (5분 초과)</p>"
 
-            except requests.exceptions.ConnectionError:
+            except requests.exceptions.ConnectionError as e:
                 other_retry_count += 1
+                # 프록시 실패 보고 (연결 오류는 프록시 문제일 가능성 높음)
+                if self.proxy_manager and proxy_url:
+                    self.proxy_manager.report_failure(proxy_url, f"connection_error: {str(e)}")
                 if other_retry_count <= max_other_retries:
                     time_module.sleep(5)
                     continue

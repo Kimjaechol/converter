@@ -50,13 +50,19 @@ class AdminConfig:
         """환경 변수에서 설정 로드"""
         env_keys = {
             'UPSTAGE_API_KEY': 'upstage_api_key',
-            'LAWPRO_ADMIN_KEY': 'admin_key'
+            'LAWPRO_ADMIN_KEY': 'admin_key',
+            'PROXY_SERVERS': 'proxy_servers',  # 쉼표로 구분된 프록시 URL 목록
+            'PROXY_MODE': 'proxy_mode'  # round_robin, random, session_sticky
         }
 
         for env_key, config_key in env_keys.items():
             value = os.environ.get(env_key)
             if value:
-                self._config[config_key] = value
+                # PROXY_SERVERS는 쉼표로 구분된 목록을 배열로 변환
+                if env_key == 'PROXY_SERVERS':
+                    self._config[config_key] = [p.strip() for p in value.split(',') if p.strip()]
+                else:
+                    self._config[config_key] = value
                 print(f"[AdminConfig] 환경 변수에서 로드됨: {env_key}")
 
     @property
