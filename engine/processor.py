@@ -124,19 +124,29 @@ class FileProcessor:
         Returns:
             Dict with keys: status, file, method, time, error (optional)
 
-        Output Structure:
-            {output_folder}/{filename}/
-                ├── view.html       (원본 서식 - 열람용)
-                ├── clean_ai.html   (AI 학습용 - JS/CSS 제거)
-                └── content.md      (마크다운 - 노트앱 호환)
+        Output Structure (개선됨 - 타입별 폴더):
+            {output_folder}/
+                ├── html_view/
+                │   ├── {filename}_view.html
+                │   └── ...
+                ├── html_clean/
+                │   ├── {filename}_clean.html
+                │   └── ...
+                └── markdown/
+                    ├── {filename}_markdown.md
+                    └── ...
         """
         filename = os.path.basename(file_path)
         doc_name = os.path.splitext(filename)[0]
         ext = os.path.splitext(filename)[1].lower()
 
-        # 파일별 출력 폴더 생성
-        doc_folder = os.path.join(self.output_folder, doc_name)
-        os.makedirs(doc_folder, exist_ok=True)
+        # 타입별 출력 폴더 생성
+        view_folder = os.path.join(self.output_folder, "html_view")
+        clean_folder = os.path.join(self.output_folder, "html_clean")
+        md_folder = os.path.join(self.output_folder, "markdown")
+        os.makedirs(view_folder, exist_ok=True)
+        os.makedirs(clean_folder, exist_ok=True)
+        os.makedirs(md_folder, exist_ok=True)
 
         start_time = time.time()
         method = "Local"
@@ -169,24 +179,27 @@ class FileProcessor:
             else:
                 raise ValueError(f"지원하지 않는 파일 형식: {ext}")
 
-            # === 3-Way Output 저장 ===
+            # === 3-Way Output 저장 (타입별 폴더, 원본 파일명 보존) ===
 
-            # 1. View HTML (원본 서식용)
-            view_path = os.path.join(doc_folder, "view.html")
+            # 1. View HTML (원본 서식용) → html_view/{doc_name}_view.html
+            view_filename = f"{doc_name}_view.html"
+            view_path = os.path.join(view_folder, view_filename)
             self._save_html(view_path, content, filename)
-            outputs.append("view.html")
+            outputs.append(f"html_view/{view_filename}")
 
-            # 2. Clean HTML (AI 학습용)
+            # 2. Clean HTML (AI 학습용) → html_clean/{doc_name}_clean.html
             if self.generate_clean_html and self.cleaner:
-                clean_path = os.path.join(doc_folder, "clean_ai.html")
+                clean_filename = f"{doc_name}_clean.html"
+                clean_path = os.path.join(clean_folder, clean_filename)
                 clean_html = self.cleaner.make_clean_html_for_ai(content)
                 with open(clean_path, 'w', encoding='utf-8') as f:
                     f.write(clean_html)
-                outputs.append("clean_ai.html")
+                outputs.append(f"html_clean/{clean_filename}")
 
-            # 3. Markdown (노트앱 호환용)
+            # 3. Markdown (노트앱 호환용) → markdown/{doc_name}_markdown.md
             if self.generate_markdown and self.cleaner:
-                md_path = os.path.join(doc_folder, "content.md")
+                md_filename = f"{doc_name}_markdown.md"
+                md_path = os.path.join(md_folder, md_filename)
                 # Clean HTML 사용 (없으면 원본에서 변환)
                 if self.generate_clean_html:
                     markdown = self.cleaner.convert_to_markdown(clean_html)
@@ -195,7 +208,7 @@ class FileProcessor:
                     markdown = self.cleaner.convert_to_markdown(clean_html)
                 with open(md_path, 'w', encoding='utf-8') as f:
                     f.write(markdown)
-                outputs.append("content.md")
+                outputs.append(f"markdown/{md_filename}")
 
             elapsed = round(time.time() - start_time, 2)
             return {
@@ -203,7 +216,7 @@ class FileProcessor:
                 "file": filename,
                 "method": method,
                 "time": elapsed,
-                "output": doc_folder,
+                "output": self.output_folder,
                 "outputs": outputs
             }
 
