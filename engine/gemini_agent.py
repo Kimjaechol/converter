@@ -44,35 +44,36 @@ except ImportError:
 
 
 def load_system_prompt() -> str:
-    """검수 규칙에서 시스템 프롬프트 생성"""
-    if HAS_RULES:
-        rules = get_review_rules()
-        system = rules.get('시스템_지시', {})
-        role = system.get('역할', '당신은 법률 문서 OCR 검수 전문가입니다.')
-        principles = system.get('원칙', [])
+    """검수 규칙에서 시스템 프롬프트 생성 (오류 시 기본 프롬프트 반환)"""
+    try:
+        if HAS_RULES:
+            rules = get_review_rules()
+            system = rules.get('시스템_지시', {})
+            role = system.get('역할', '당신은 법률 문서 OCR 검수 전문가입니다.')
+            principles = system.get('원칙', [])
 
-        # 오류 카테고리 추출
-        categories = rules.get('오류_카테고리', {})
-        rules_text = []
-        for cat_name, cat_data in categories.items():
-            if isinstance(cat_data, dict):
-                rules_text.append(f"\n### {cat_name}")
-                rules_text.append(f"**설명**: {cat_data.get('설명', '')}")
-                rules_text.append(f"**중요도**: {cat_data.get('중요도', '중간')}")
-                for rule in cat_data.get('규칙', []):
-                    if isinstance(rule, dict):
-                        rules_text.append(f"- {rule.get('유형', '')}: {', '.join(rule.get('오류_예시', [])[:5])}")
+            # 오류 카테고리 추출
+            categories = rules.get('오류_카테고리', {})
+            rules_text = []
+            for cat_name, cat_data in categories.items():
+                if isinstance(cat_data, dict):
+                    rules_text.append(f"\n### {cat_name}")
+                    rules_text.append(f"**설명**: {cat_data.get('설명', '')}")
+                    rules_text.append(f"**중요도**: {cat_data.get('중요도', '중간')}")
+                    for rule in cat_data.get('규칙', []):
+                        if isinstance(rule, dict):
+                            rules_text.append(f"- {rule.get('유형', '')}: {', '.join(rule.get('오류_예시', [])[:5])}")
 
-        # 자주 틀리는 단어
-        common = rules.get('자주_틀리는_단어', {})
-        common_text = []
-        for category, words in common.items():
-            if isinstance(words, dict):
-                for correct, errors in list(words.items())[:10]:
-                    if isinstance(errors, list):
-                        common_text.append(f"- {correct}: {', '.join(errors[:3])}")
+            # 자주 틀리는 단어
+            common = rules.get('자주_틀리는_단어', {})
+            common_text = []
+            for category, words in common.items():
+                if isinstance(words, dict):
+                    for correct, errors in list(words.items())[:10]:
+                        if isinstance(errors, list):
+                            common_text.append(f"- {correct}: {', '.join(errors[:3])}")
 
-        return f"""{role}
+            return f"""{role}
 
 ## 역할 원칙
 {chr(10).join(f'- {p}' for p in principles)}
@@ -102,8 +103,12 @@ def load_system_prompt() -> str:
 (불확실한 수정 - 사용자 검토 필요)
 ===검토필요_END===
 """
+    except json.JSONDecodeError as e:
+        print(f"[load_system_prompt] JSON 파싱 오류: {e} - 기본 프롬프트 사용", file=sys.stderr)
+    except Exception as e:
+        print(f"[load_system_prompt] 규칙 로드 오류: {e} - 기본 프롬프트 사용", file=sys.stderr)
 
-    # 기본 프롬프트 (규칙 파일이 없을 때)
+    # 기본 프롬프트 (규칙 파일이 없거나 오류 시)
     return SYSTEM_PROMPT_DEFAULT
 
 
