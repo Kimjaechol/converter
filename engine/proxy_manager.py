@@ -11,20 +11,38 @@ Proxy Manager - 다중 사용자 프록시 관리
 - 세션별 프록시 할당
 - 프록시 상태 모니터링 (실패 시 자동 제외)
 - 라운드 로빈/랜덤 로드 밸런싱
+- Decodo 등 포트 기반 프록시 서비스 지원
 
 사용법:
-1. admin_config.json에 proxy_servers 설정
+1. admin_config.json에 프록시 설정
 2. FileProcessor에서 자동으로 프록시 사용
 
-설정 예시 (admin_config.json):
+설정 방법 1 - Decodo 스타일 (포트 범위):
+{
+    "proxy_host": "gate.decodo.com",
+    "proxy_username": "sp3u3hafyc",
+    "proxy_password": "PoOz6V4u4X0...",
+    "proxy_port_start": 10001,
+    "proxy_port_end": 10050,
+    "proxy_mode": "round_robin"
+}
+
+설정 방법 2 - 개별 프록시 URL 목록:
 {
     "proxy_servers": [
-        "http://proxy1.example.com:8080",
-        "http://user:pass@proxy2.example.com:8080",
-        "socks5://proxy3.example.com:1080"
+        "http://user:pass@proxy1.example.com:8080",
+        "http://user:pass@proxy2.example.com:8080"
     ],
-    "proxy_mode": "round_robin"  // round_robin, random, session_sticky
+    "proxy_mode": "round_robin"
 }
+
+환경변수 설정:
+- PROXY_HOST=gate.decodo.com
+- PROXY_USERNAME=sp3u3hafyc
+- PROXY_PASSWORD=PoOz6V4u4X0...
+- PROXY_PORT_START=10001
+- PROXY_PORT_END=10050
+- PROXY_MODE=round_robin
 """
 
 import os
@@ -256,6 +274,36 @@ class ProxyManager:
 _proxy_manager_instance = None
 
 
+def generate_proxy_urls_from_port_range(
+    host: str,
+    username: str,
+    password: str,
+    port_start: int,
+    port_end: int,
+    protocol: str = "http"
+) -> List[str]:
+    """
+    포트 범위로 프록시 URL 목록 생성 (Decodo 등)
+
+    Args:
+        host: 프록시 호스트 (예: gate.decodo.com)
+        username: 인증 사용자명
+        password: 인증 비밀번호
+        port_start: 시작 포트 (예: 10001)
+        port_end: 종료 포트 (예: 10050)
+        protocol: 프로토콜 (http, https, socks5)
+
+    Returns:
+        프록시 URL 목록
+        예: ["http://user:pass@gate.decodo.com:10001", ...]
+    """
+    proxies = []
+    for port in range(port_start, port_end + 1):
+        proxy_url = f"{protocol}://{username}:{password}@{host}:{port}"
+        proxies.append(proxy_url)
+    return proxies
+
+
 def get_proxy_manager() -> Optional[ProxyManager]:
     """프록시 매니저 싱글톤 인스턴스 반환"""
     global _proxy_manager_instance
@@ -266,14 +314,39 @@ def get_proxy_manager() -> Optional[ProxyManager]:
             from admin_config import get_admin_config
             config = get_admin_config()
 
-            proxies = config.get("proxy_servers", [])
+            proxies = []
             mode = config.get("proxy_mode", "round_robin")
+
+            # 방법 1: Decodo 스타일 (포트 범위 설정)
+            proxy_host = config.get("proxy_host")
+            proxy_username = config.get("proxy_username")
+            proxy_password = config.get("proxy_password")
+            proxy_port_start = config.get("proxy_port_start")
+            proxy_port_end = config.get("proxy_port_end")
+
+            if all([proxy_host, proxy_username, proxy_password, proxy_port_start, proxy_port_end]):
+                proxies = generate_proxy_urls_from_port_range(
+                    host=proxy_host,
+                    username=proxy_username,
+                    password=proxy_password,
+                    port_start=int(proxy_port_start),
+                    port_end=int(proxy_port_end),
+                    protocol=config.get("proxy_protocol", "http")
+                )
+                print(f"[ProxyManager] Decodo 프록시 {len(proxies)}개 생성됨 "
+                      f"(포트 {proxy_port_start}-{proxy_port_end}, 모드: {mode})")
+
+            # 방법 2: 개별 프록시 URL 목록
+            if not proxies:
+                proxies = config.get("proxy_servers", [])
+                if proxies:
+                    print(f"[ProxyManager] 프록시 {len(proxies)}개 로드됨 (모드: {mode})")
 
             if proxies:
                 _proxy_manager_instance = ProxyManager(proxies=proxies, mode=mode)
-                print(f"[ProxyManager] 프록시 {len(proxies)}개 로드됨 (모드: {mode})")
             else:
                 return None
+
         except ImportError:
             return None
         except Exception as e:
@@ -287,4 +360,37 @@ def init_proxy_manager(proxies: List[str], mode: str = "round_robin") -> ProxyMa
     """프록시 매니저 초기화 (외부에서 직접 설정)"""
     global _proxy_manager_instance
     _proxy_manager_instance = ProxyManager(proxies=proxies, mode=mode)
+    return _proxy_manager_instance
+
+
+def init_proxy_manager_decodo(
+    host: str,
+    username: str,
+    password: str,
+    port_start: int,
+    port_end: int,
+    mode: str = "round_robin"
+) -> ProxyManager:
+    """
+    Decodo 스타일 프록시 매니저 초기화
+
+    사용 예:
+        init_proxy_manager_decodo(
+            host="gate.decodo.com",
+            username="sp3u3hafyc",
+            password="PoOz6V4u4X0...",
+            port_start=10001,
+            port_end=10050
+        )
+    """
+    global _proxy_manager_instance
+    proxies = generate_proxy_urls_from_port_range(
+        host=host,
+        username=username,
+        password=password,
+        port_start=port_start,
+        port_end=port_end
+    )
+    _proxy_manager_instance = ProxyManager(proxies=proxies, mode=mode)
+    print(f"[ProxyManager] Decodo 프록시 {len(proxies)}개 초기화됨 (모드: {mode})")
     return _proxy_manager_instance

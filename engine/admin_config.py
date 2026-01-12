@@ -48,6 +48,7 @@ class AdminConfig:
 
     def _load_from_env(self):
         """환경 변수에서 설정 로드"""
+        # 기본 설정
         env_keys = {
             'UPSTAGE_API_KEY': 'upstage_api_key',
             'LAWPRO_ADMIN_KEY': 'admin_key',
@@ -61,6 +62,30 @@ class AdminConfig:
                 # PROXY_SERVERS는 쉼표로 구분된 목록을 배열로 변환
                 if env_key == 'PROXY_SERVERS':
                     self._config[config_key] = [p.strip() for p in value.split(',') if p.strip()]
+                else:
+                    self._config[config_key] = value
+                print(f"[AdminConfig] 환경 변수에서 로드됨: {env_key}")
+
+        # Decodo 스타일 프록시 설정 (포트 범위)
+        decodo_env_keys = {
+            'PROXY_HOST': 'proxy_host',           # 예: gate.decodo.com
+            'PROXY_USERNAME': 'proxy_username',   # 예: sp3u3hafyc
+            'PROXY_PASSWORD': 'proxy_password',   # 예: PoOz6V4u4X0...
+            'PROXY_PORT_START': 'proxy_port_start',  # 예: 10001
+            'PROXY_PORT_END': 'proxy_port_end',      # 예: 10050
+            'PROXY_PROTOCOL': 'proxy_protocol'       # 예: http (기본값)
+        }
+
+        for env_key, config_key in decodo_env_keys.items():
+            value = os.environ.get(env_key)
+            if value:
+                # 포트 번호는 정수로 변환
+                if 'PORT' in env_key:
+                    try:
+                        self._config[config_key] = int(value)
+                    except ValueError:
+                        print(f"[AdminConfig] 포트 번호 오류: {env_key}={value}")
+                        continue
                 else:
                     self._config[config_key] = value
                 print(f"[AdminConfig] 환경 변수에서 로드됨: {env_key}")
