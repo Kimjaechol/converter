@@ -170,51 +170,33 @@ class FileProcessor:
                     method = "Upstage API"
                     content = self._convert_image_pdf_upstage(file_path)
 
-                    # Gemini 3.0 Flash 자동 교정 (이미지 PDF만)
-                    if self.enable_gemini_correction and self.gemini_api_key and content:
-                        # 에러 응답이 아닌 경우에만 교정
-                        if not content.startswith("<p>API") and not content.startswith("<p>오류"):
-                            try:
-                                content = correct_html_with_gemini(
-                                    html_content=content,
-                                    original_file_path=file_path,
-                                    api_key=self.gemini_api_key
-                                )
-                                method = "Upstage API + Gemini 교정"
-                            except Exception as e:
-                                import sys
-                                print(json.dumps({
-                                    "type": "warning",
-                                    "msg": f"Gemini 교정 실패 (원본 유지): {str(e)}"
-                                }), file=sys.stderr, flush=True)
-
             elif ext in ('.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.gif', '.webp'):
-                # 이미지 파일 → Upstage API로 OCR + Gemini 교정
+                # 이미지 파일 → Upstage API로 OCR
                 if self.api_key:
                     method = "Upstage API"
                     content = self._convert_image_pdf_upstage(file_path)
-
-                    # Gemini 3.0 Flash 자동 교정
-                    if self.enable_gemini_correction and self.gemini_api_key and content:
-                        if not content.startswith("<p>API") and not content.startswith("<p>오류"):
-                            try:
-                                content = correct_html_with_gemini(
-                                    html_content=content,
-                                    original_file_path=file_path,
-                                    api_key=self.gemini_api_key
-                                )
-                                method = "Upstage API + Gemini 교정"
-                            except Exception as e:
-                                import sys
-                                print(json.dumps({
-                                    "type": "warning",
-                                    "msg": f"Gemini 교정 실패 (원본 유지): {str(e)}"
-                                }), file=sys.stderr, flush=True)
                 else:
                     content = "<p>이미지 파일은 Upstage API 키가 필요합니다.</p>"
 
             else:
                 raise ValueError(f"지원하지 않는 파일 형식: {ext}")
+
+            # === Gemini 3.0 Flash 자동 교정 (모든 문서 유형 공통) ===
+            if self.enable_gemini_correction and self.gemini_api_key and content:
+                # 에러 응답이 아닌 경우에만 교정
+                if not content.startswith("<p>API") and not content.startswith("<p>오류") and not content.startswith("<p>이미지"):
+                    try:
+                        content = correct_html_with_gemini(
+                            html_content=content,
+                            original_file_path=file_path,
+                            api_key=self.gemini_api_key
+                        )
+                        method = method + " + Gemini 교정" if method != "Local" else "Local + Gemini 교정"
+                    except Exception as e:
+                        print(json.dumps({
+                            "type": "warning",
+                            "msg": f"Gemini 교정 실패 (원본 유지): {str(e)}"
+                        }), file=sys.stderr, flush=True)
 
             # === 3-Way Output 저장 ===
 

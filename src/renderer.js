@@ -513,7 +513,7 @@ async function startConversion() {
 
     const geminiCorrectionOn = elements.chkGeminiCorrection && elements.chkGeminiCorrection.checked;
     if (geminiCorrectionOn) {
-        addLog('info', 'Gemini 3.0 Flash 자동 교정: 활성화 (이미지 PDF/이미지 파일 변환 시 원본 대조 교정)');
+        addLog('info', 'Gemini 3.0 Flash 자동 교정: 활성화 (모든 문서 변환 시 정밀 검토 및 교정)');
     }
 
     try {

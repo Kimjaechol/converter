@@ -112,7 +112,7 @@ def main():
 
         # Gemini 교정 상태 로그
         if enable_gemini_correction and gemini_api_key:
-            emit_message("log", msg="Gemini 3.0 Flash 자동 교정: 활성화 (이미지 PDF/이미지 파일 변환 시 적용)")
+            emit_message("log", msg="Gemini 3.0 Flash 자동 교정: 활성화 (모든 문서 변환 시 적용)")
         else:
             if not gemini_api_key:
                 emit_message("log", msg="Gemini 3.0 Flash 자동 교정: 비활성화 (API 키 미설정)")
@@ -143,7 +143,7 @@ def main():
             "success": 0,
             "fail": 0,
             "total_time": 0,
-            "by_method": {"local": 0, "upstage": 0, "upstage_gemini": 0}
+            "by_method": {"local": 0, "upstage": 0, "local_gemini": 0, "upstage_gemini": 0}
         }
 
         start_time = time.time()
@@ -166,8 +166,10 @@ def main():
                     if result.get("status") == "success":
                         stats["success"] += 1
                         method = result.get("method", "local").lower()
-                        if "gemini" in method:
+                        if "gemini" in method and "upstage" in method:
                             stats["by_method"]["upstage_gemini"] += 1
+                        elif "gemini" in method:
+                            stats["by_method"]["local_gemini"] += 1
                         elif "upstage" in method:
                             stats["by_method"]["upstage"] += 1
                         else:
