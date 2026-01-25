@@ -215,6 +215,24 @@ contextBridge.exposeInMainWorld('lawpro', {
         ipcRenderer.invoke('check-credits', pageCount),
 
     // ========================================
+    // 회원 가입 / 로그인 / 관리자
+    // ========================================
+    register: (userId, password, email) =>
+        ipcRenderer.invoke('register', userId, password, email),
+
+    login: (userId, password) =>
+        ipcRenderer.invoke('login', userId, password),
+
+    getUserId: () =>
+        ipcRenderer.invoke('get-user-id'),
+
+    adminAddCredits: (targetUserId, amount, reason) =>
+        ipcRenderer.invoke('admin-add-credits', targetUserId, amount, reason),
+
+    adminListUsers: () =>
+        ipcRenderer.invoke('admin-list-users'),
+
+    // ========================================
     // 시스템 정보
     // ========================================
     platform: process.platform,

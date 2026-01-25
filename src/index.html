@@ -158,6 +158,42 @@
             background: #6366f1;
         }
 
+        /* 에디터 탭 강조 */
+        .editor-tab {
+            position: relative;
+            transition: all 0.2s;
+        }
+        .editor-tab:hover {
+            background: rgba(99, 102, 241, 0.08);
+        }
+        .editor-tab.active-tab {
+            background: rgba(99, 102, 241, 0.12);
+        }
+
+        /* 에디터 WYSIWYG 개선 */
+        #visualEditor {
+            font-family: 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+            font-size: 14px;
+            line-height: 1.7;
+        }
+        #visualEditor:focus {
+            outline: none;
+            box-shadow: inset 0 0 0 2px rgba(99, 102, 241, 0.3);
+        }
+        #visualEditor table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        #visualEditor td, #visualEditor th {
+            border: 1px solid #d1d5db;
+            padding: 6px 10px;
+            min-width: 40px;
+        }
+        #visualEditor th {
+            background: #f3f4f6;
+            font-weight: 600;
+        }
+
         /* 수정 검토 아이템 */
         .correction-item {
             background: #1f2937;
@@ -241,6 +277,13 @@
                     에디터
                 </button>
 
+                <button id="navAdmin" class="nav-btn w-full flex items-center px-4 py-3 rounded-lg text-left transition-colors hover:bg-gray-700 text-gray-300 hidden">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                    </svg>
+                    관리자
+                </button>
+
                 <button id="navSettings" class="nav-btn w-full flex items-center px-4 py-3 rounded-lg text-left transition-colors hover:bg-gray-700 text-gray-300">
                     <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
@@ -250,14 +293,32 @@
                 </button>
             </nav>
 
-            <!-- 크레딧 표시 -->
+            <!-- 사용자 / 크레딧 표시 -->
             <div class="p-4 border-t border-gray-700">
-                <div class="flex items-center justify-between text-sm mb-2">
-                    <span class="text-gray-400">이미지PDF 크레딧</span>
-                    <span id="creditBalance" class="text-primary-400 font-bold">0원</span>
+                <!-- 로그인 상태 -->
+                <div id="userInfoSection" class="hidden mb-3">
+                    <div class="flex items-center space-x-2 mb-1">
+                        <div class="w-7 h-7 bg-primary-600 rounded-full flex items-center justify-center">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                        </div>
+                        <span id="userIdDisplay" class="text-sm font-medium text-gray-200 truncate"></span>
+                    </div>
+                    <div id="creditAdminBadge" class="hidden mb-1">
+                        <span class="px-2 py-0.5 bg-purple-600/20 text-purple-400 rounded-full text-xs">관리자 (무제한)</span>
+                    </div>
                 </div>
-                <div id="creditAdminBadge" class="hidden mb-2">
-                    <span class="px-2 py-1 bg-purple-600/20 text-purple-400 rounded-full text-xs">관리자 (무제한)</span>
+                <!-- 미로그인 상태 -->
+                <div id="guestSection">
+                    <button id="openLoginModal" class="w-full py-2 bg-primary-600 hover:bg-primary-500 rounded-lg text-sm font-medium transition-colors mb-2">
+                        로그인 / 회원가입
+                    </button>
+                </div>
+                <div class="flex items-center justify-between text-sm mb-2">
+                    <span class="text-gray-400">크레딧</span>
+                    <span id="creditBalance" class="text-primary-400 font-bold">0</span>
+                </div>
+                <div class="text-xs text-gray-500 mb-2">
+                    <span>OCR: 50원/장 | 일반: 20원/장</span>
                 </div>
                 <button id="buyCreditsBtn" class="w-full py-2 bg-primary-600/20 hover:bg-primary-600/30 text-primary-400 rounded-lg text-xs transition-colors">
                     크레딧 충전
@@ -539,37 +600,69 @@
 
             <!-- 페이지: 에디터 -->
             <section id="pageEditor" class="page flex-1 flex flex-col p-6 hidden overflow-hidden">
+                <!-- 에디터 헤더 -->
                 <div class="flex items-center justify-between mb-4">
-                    <div>
-                        <h2 class="text-2xl font-bold">문서 에디터</h2>
-                        <p class="text-gray-400 mt-1">HTML 및 Markdown 문서를 보고 편집합니다</p>
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-gradient-to-br from-primary-500 to-purple-600 rounded-xl flex items-center justify-center">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <h2 class="text-xl font-bold">문서 에디터</h2>
+                            <p class="text-xs text-gray-500">HTML 편집 / 마크다운 변환 / 실시간 미리보기</p>
+                        </div>
                     </div>
                     <div class="flex items-center space-x-2">
-                        <button id="editorOpenFile" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors flex items-center">
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <button id="editorOpenFile" class="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors flex items-center" title="파일 열기">
+                            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"></path>
                             </svg>
-                            파일 열기
+                            열기
                         </button>
-                        <button id="editorSaveFile" class="px-4 py-2 bg-primary-600 hover:bg-primary-500 rounded-lg text-sm transition-colors flex items-center disabled:opacity-50" disabled>
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <button id="editorSaveFile" class="px-3 py-2 bg-primary-600 hover:bg-primary-500 rounded-lg text-sm transition-colors flex items-center disabled:opacity-50" disabled title="저장 (Ctrl+S)">
+                            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
                             </svg>
                             저장
                         </button>
+                        <button id="editorSaveAs" class="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors flex items-center" title="다른 이름으로 저장">
+                            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            다른 이름으로
+                        </button>
+                        <div class="w-px h-6 bg-gray-600"></div>
+                        <button id="editorExportMarkdown" class="px-3 py-2 bg-blue-600/80 hover:bg-blue-500 rounded-lg text-sm transition-colors flex items-center" title="HTML을 Markdown으로 변환하여 저장">
+                            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5"></path>
+                            </svg>
+                            마크다운 변환
+                        </button>
+                        <button id="editorExportHtml" class="px-3 py-2 bg-green-600/80 hover:bg-green-500 rounded-lg text-sm transition-colors flex items-center" title="Markdown을 HTML로 변환하여 저장">
+                            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                            </svg>
+                            HTML 변환
+                        </button>
                     </div>
                 </div>
 
-                <!-- 에디터 탭 -->
-                <div class="flex border-b border-gray-700 mb-4">
-                    <button id="tabHtml" class="editor-tab px-6 py-3 text-sm font-medium border-b-2 border-primary-500 text-primary-400">
-                        HTML 에디터
+                <!-- 에디터 탭 + 파일명 -->
+                <div class="flex items-center bg-gray-800/50 rounded-t-xl border border-gray-700 border-b-0">
+                    <button id="tabHtml" class="editor-tab px-6 py-3 text-sm font-medium border-b-2 border-primary-500 text-primary-400 flex items-center space-x-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                        <span>HTML 에디터</span>
                     </button>
-                    <button id="tabMarkdown" class="editor-tab px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-200">
-                        Markdown 에디터
+                    <button id="tabMarkdown" class="editor-tab px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-200 flex items-center space-x-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5"></path></svg>
+                        <span>Markdown 에디터</span>
                     </button>
                     <div class="flex-1"></div>
-                    <span id="editorFileName" class="text-sm text-gray-500 self-center mr-4">파일을 선택하세요</span>
+                    <div class="flex items-center space-x-2 pr-4">
+                        <span id="editorModifiedBadge" class="hidden px-2 py-0.5 bg-yellow-600/20 text-yellow-400 rounded text-xs">수정됨</span>
+                        <span id="editorFileName" class="text-sm text-gray-500">파일을 선택하세요</span>
+                    </div>
                 </div>
 
                 <!-- HTML 에디터 -->
@@ -674,6 +767,70 @@
                 </div>
             </section>
 
+            <!-- 페이지: 관리자 -->
+            <section id="pageAdmin" class="page flex-1 p-6 overflow-y-auto hidden">
+                <div class="max-w-3xl">
+                    <div class="flex items-center space-x-3 mb-6">
+                        <div class="w-10 h-10 bg-purple-600 rounded-xl flex items-center justify-center">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <h2 class="text-2xl font-bold">관리자 패널</h2>
+                            <p class="text-gray-400 mt-0.5 text-sm">회원 관리 및 크레딧 부여</p>
+                        </div>
+                    </div>
+
+                    <!-- 크레딧 부여 -->
+                    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 mb-6">
+                        <h3 class="font-bold text-lg mb-4">크레딧 부여</h3>
+                        <div class="flex items-end space-x-3 mb-4">
+                            <div class="flex-1">
+                                <label class="block text-sm text-gray-400 mb-1">대상 회원 ID</label>
+                                <input type="text" id="adminTargetUser" placeholder="회원 아이디 입력"
+                                    class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm focus:border-purple-500 focus:outline-none">
+                            </div>
+                            <div class="w-40">
+                                <label class="block text-sm text-gray-400 mb-1">크레딧 수량</label>
+                                <input type="number" id="adminCreditAmount" placeholder="1000" min="1"
+                                    class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm focus:border-purple-500 focus:outline-none">
+                            </div>
+                            <button id="adminAddCreditsBtn" class="px-6 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
+                                크레딧 부여
+                            </button>
+                        </div>
+                        <p id="adminAddResult" class="text-sm hidden"></p>
+                    </div>
+
+                    <!-- 회원 목록 -->
+                    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="font-bold text-lg">회원 목록</h3>
+                            <button id="adminRefreshUsers" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors">
+                                새로고침
+                            </button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="text-left text-gray-400 border-b border-gray-700">
+                                        <th class="pb-3 pr-4">아이디</th>
+                                        <th class="pb-3 pr-4">이메일</th>
+                                        <th class="pb-3 pr-4 text-right">크레딧</th>
+                                        <th class="pb-3 pr-4 text-right">변환 페이지</th>
+                                        <th class="pb-3">가입일</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="adminUsersList" class="divide-y divide-gray-700">
+                                    <tr><td colspan="5" class="py-4 text-center text-gray-500">로딩 중...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <!-- 페이지: 설정 -->
             <section id="pageSettings" class="page flex-1 p-6 overflow-y-auto hidden">
                 <div class="max-w-2xl">
@@ -742,6 +899,74 @@
         </main>
     </div>
 
+    <!-- 로그인/회원가입 모달 -->
+    <div id="authModal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden">
+        <div class="bg-gray-800 rounded-2xl p-8 w-full max-w-md border border-gray-700 shadow-2xl relative">
+            <!-- 탭 -->
+            <div class="flex mb-6 bg-gray-900 rounded-xl p-1">
+                <button id="authTabLogin" class="flex-1 py-2.5 text-sm font-medium rounded-lg bg-primary-600 text-white transition-colors">
+                    로그인
+                </button>
+                <button id="authTabRegister" class="flex-1 py-2.5 text-sm font-medium rounded-lg text-gray-400 hover:text-gray-200 transition-colors">
+                    회원가입
+                </button>
+            </div>
+
+            <!-- 로그인 폼 -->
+            <div id="loginForm">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1.5">아이디</label>
+                        <input type="text" id="loginUserId" placeholder="아이디를 입력하세요"
+                            class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/50">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1.5">비밀번호</label>
+                        <input type="password" id="loginPassword" placeholder="비밀번호를 입력하세요"
+                            class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/50">
+                    </div>
+                </div>
+                <button id="loginBtn" class="w-full mt-6 py-3 bg-primary-600 hover:bg-primary-500 rounded-xl font-medium text-sm transition-colors">
+                    로그인
+                </button>
+                <p id="loginMessage" class="mt-3 text-sm text-center hidden"></p>
+            </div>
+
+            <!-- 회원가입 폼 -->
+            <div id="registerForm" class="hidden">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1.5">아이디</label>
+                        <input type="text" id="registerUserId" placeholder="2자 이상 입력"
+                            class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/50">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1.5">비밀번호</label>
+                        <input type="password" id="registerPassword" placeholder="2자 이상 입력"
+                            class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/50">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1.5">이메일 (선택)</label>
+                        <input type="email" id="registerEmail" placeholder="email@example.com"
+                            class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/50">
+                    </div>
+                </div>
+                <button id="registerBtn" class="w-full mt-6 py-3 bg-green-600 hover:bg-green-500 rounded-xl font-medium text-sm transition-colors">
+                    회원가입
+                </button>
+                <p class="text-xs text-gray-500 text-center mt-3">가입 시 1,000 크레딧이 무료로 지급됩니다</p>
+                <p id="registerMessage" class="mt-2 text-sm text-center hidden"></p>
+            </div>
+
+            <!-- 닫기 -->
+            <button id="closeAuthModal" class="absolute top-4 right-4 text-gray-400 hover:text-gray-200">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+    </div>
+
     <!-- 크레딧 충전 모달 -->
     <div id="creditModal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden">
         <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-lg border border-gray-700 shadow-2xl">
@@ -754,26 +979,24 @@
                 </button>
             </div>
 
-            <!-- 이메일 설정 -->
-            <div class="mb-6">
-                <label class="block text-sm text-gray-400 mb-2">사용자 이메일</label>
-                <div class="flex space-x-2">
-                    <input type="email" id="userEmailInput" placeholder="email@example.com"
-                        class="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm focus:border-primary-500 focus:outline-none">
-                    <button id="saveUserEmail" class="px-4 py-2 bg-primary-600 hover:bg-primary-500 rounded-lg text-sm transition-colors">
-                        저장
-                    </button>
-                </div>
-                <p class="text-xs text-gray-500 mt-1">* 관리자 이메일(kjccjk@hanmail.net)은 무제한 사용</p>
-            </div>
-
             <!-- 현재 잔액 -->
-            <div class="bg-gray-900 rounded-lg p-4 mb-6">
-                <div class="flex items-center justify-between">
-                    <span class="text-gray-400">현재 잔액</span>
-                    <span id="modalCreditBalance" class="text-2xl font-bold text-primary-400">0원</span>
+            <div class="bg-gray-900 rounded-xl p-5 mb-6">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-gray-400">현재 크레딧 잔액</span>
+                    <span id="modalCreditBalance" class="text-2xl font-bold text-primary-400">0</span>
                 </div>
-                <p class="text-xs text-gray-500 mt-1">이미지 PDF 변환: 1페이지당 55원 (부가세 포함)</p>
+                <div class="grid grid-cols-2 gap-3 text-xs">
+                    <div class="bg-gray-800 rounded-lg p-3">
+                        <p class="text-gray-500 mb-1">이미지 PDF / 이미지 파일</p>
+                        <p class="text-primary-400 font-bold">50원 / 장 <span class="text-gray-500 font-normal">(부가세 별도)</span></p>
+                        <p class="text-gray-600 mt-1">OCR + AI 교정 포함</p>
+                    </div>
+                    <div class="bg-gray-800 rounded-lg p-3">
+                        <p class="text-gray-500 mb-1">일반 문서 (DOCX, HWPX 등)</p>
+                        <p class="text-green-400 font-bold">20원 / 장 <span class="text-gray-500 font-normal">(부가세 별도)</span></p>
+                        <p class="text-gray-600 mt-1">AI 교정 포함</p>
+                    </div>
+                </div>
             </div>
 
             <!-- 패키지 선택 -->
@@ -781,30 +1004,30 @@
                 <p class="text-sm text-gray-400 mb-2">크레딧 패키지 선택:</p>
                 <button class="credit-package w-full flex items-center justify-between p-4 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors" data-package="basic">
                     <div>
-                        <p class="font-bold">11만원</p>
-                        <p class="text-xs text-gray-400">약 2,000페이지</p>
+                        <p class="font-bold">5만 크레딧</p>
+                        <p class="text-xs text-gray-400">OCR 1,000장 / 일반 2,500장</p>
                     </div>
-                    <span class="text-primary-400 font-bold">110,000원</span>
+                    <span class="text-primary-400 font-bold">50,000원</span>
                 </button>
                 <button class="credit-package w-full flex items-center justify-between p-4 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors" data-package="standard">
                     <div>
-                        <p class="font-bold">22만원</p>
-                        <p class="text-xs text-gray-400">약 4,000페이지</p>
+                        <p class="font-bold">10만 크레딧</p>
+                        <p class="text-xs text-gray-400">OCR 2,000장 / 일반 5,000장</p>
                     </div>
-                    <span class="text-primary-400 font-bold">220,000원</span>
+                    <span class="text-primary-400 font-bold">100,000원</span>
                 </button>
                 <button class="credit-package w-full flex items-center justify-between p-4 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors" data-package="premium">
                     <div>
-                        <p class="font-bold">55만원</p>
-                        <p class="text-xs text-gray-400">약 10,000페이지</p>
+                        <p class="font-bold">30만 크레딧</p>
+                        <p class="text-xs text-gray-400">OCR 6,000장 / 일반 15,000장</p>
                     </div>
-                    <span class="text-primary-400 font-bold">550,000원</span>
+                    <span class="text-primary-400 font-bold">300,000원</span>
                 </button>
             </div>
 
             <p class="text-xs text-gray-500 text-center">
-                * 결제는 추후 토스페이먼츠/카카오페이 연동 예정<br>
-                * 현재 테스트 모드: 버튼 클릭 시 바로 충전
+                * 결제 모듈 연동 예정 (현재 테스트 단계)<br>
+                * 테스트 모드: 버튼 클릭 시 바로 충전됩니다
             </p>
         </div>
     </div>

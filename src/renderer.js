@@ -299,6 +299,7 @@ function setupEventListeners() {
     elements.navConvert.addEventListener('click', () => showPage('convert'));
     elements.navReview.addEventListener('click', () => showPage('review'));
     elements.navEditor.addEventListener('click', () => showPage('editor'));
+    if (elements.navAdmin) elements.navAdmin.addEventListener('click', () => { showPage('admin'); loadAdminUsers(); });
     elements.navSettings.addEventListener('click', () => showPage('settings'));
 
     // 드롭존
@@ -1028,6 +1029,7 @@ function setupEditorEventListeners() {
     elements.visualEditor?.addEventListener('input', () => {
         editorState.isModified = true;
         elements.editorSaveFile.disabled = false;
+        updateEditorModifiedBadge();
         syncVisualToCode();
         updateHtmlPreview();
     });
@@ -1051,6 +1053,16 @@ function setupEditorEventListeners() {
         elements.editorSaveFile.disabled = false;
         clearTimeout(mdTimeout);
         mdTimeout = setTimeout(updateMarkdownPreview, 300);
+    });
+
+    // Ctrl+S 저장 단축키
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+            e.preventDefault();
+            if (!elements.editorSaveFile.disabled) {
+                saveEditorFile();
+            }
+        }
     });
 
     // 새로고침 버튼
@@ -1360,7 +1372,7 @@ async function saveEditorFile() {
                 elements.editorFileName.textContent = result.name;
                 editorState.isModified = false;
                 elements.editorSaveFile.disabled = true;
-                alert('저장 완료!');
+                updateEditorModifiedBadge();
             }
         } catch (err) {
             alert('저장 실패: ' + err.message);
@@ -1370,7 +1382,7 @@ async function saveEditorFile() {
             await window.lawpro.editorSaveFile(editorState.currentFile, content);
             editorState.isModified = false;
             elements.editorSaveFile.disabled = true;
-            alert('저장 완료!');
+            updateEditorModifiedBadge();
         } catch (err) {
             alert('저장 실패: ' + err.message);
         }
@@ -1969,14 +1981,453 @@ function setupCorrectionEventListeners() {
 }
 
 // ============================================================
+// 로그인 / 회원가입
+// ============================================================
+const authState = {
+    isLoggedIn: false,
+    userId: '',
+    isAdmin: false
+};
+
+function setupAuthEventListeners() {
+    const openLoginModal = document.getElementById('openLoginModal');
+    const closeAuthModal = document.getElementById('closeAuthModal');
+    const authModal = document.getElementById('authModal');
+    const authTabLogin = document.getElementById('authTabLogin');
+    const authTabRegister = document.getElementById('authTabRegister');
+    const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
+    const loginBtn = document.getElementById('loginBtn');
+    const registerBtn = document.getElementById('registerBtn');
+
+    openLoginModal?.addEventListener('click', () => {
+        authModal.classList.remove('hidden');
+    });
+
+    closeAuthModal?.addEventListener('click', () => {
+        authModal.classList.add('hidden');
+    });
+
+    authModal?.addEventListener('click', (e) => {
+        if (e.target === authModal) authModal.classList.add('hidden');
+    });
+
+    authTabLogin?.addEventListener('click', () => {
+        authTabLogin.className = 'flex-1 py-2.5 text-sm font-medium rounded-lg bg-primary-600 text-white transition-colors';
+        authTabRegister.className = 'flex-1 py-2.5 text-sm font-medium rounded-lg text-gray-400 hover:text-gray-200 transition-colors';
+        loginForm.classList.remove('hidden');
+        registerForm.classList.add('hidden');
+    });
+
+    authTabRegister?.addEventListener('click', () => {
+        authTabRegister.className = 'flex-1 py-2.5 text-sm font-medium rounded-lg bg-green-600 text-white transition-colors';
+        authTabLogin.className = 'flex-1 py-2.5 text-sm font-medium rounded-lg text-gray-400 hover:text-gray-200 transition-colors';
+        registerForm.classList.remove('hidden');
+        loginForm.classList.add('hidden');
+    });
+
+    loginBtn?.addEventListener('click', async () => {
+        const userId = document.getElementById('loginUserId').value.trim();
+        const password = document.getElementById('loginPassword').value;
+        const msgEl = document.getElementById('loginMessage');
+
+        if (!userId || !password) {
+            msgEl.textContent = '아이디와 비밀번호를 입력하세요';
+            msgEl.className = 'mt-3 text-sm text-center text-red-400';
+            msgEl.classList.remove('hidden');
+            return;
+        }
+
+        loginBtn.disabled = true;
+        loginBtn.textContent = '로그인 중...';
+
+        try {
+            const result = await window.lawpro.login(userId, password);
+            if (result.success) {
+                msgEl.textContent = result.message;
+                msgEl.className = 'mt-3 text-sm text-center text-green-400';
+                msgEl.classList.remove('hidden');
+
+                authState.isLoggedIn = true;
+                authState.userId = result.user_id;
+                authState.isAdmin = result.is_admin;
+
+                updateAuthUI();
+                await loadCreditBalance();
+
+                setTimeout(() => authModal.classList.add('hidden'), 800);
+            } else {
+                msgEl.textContent = result.message;
+                msgEl.className = 'mt-3 text-sm text-center text-red-400';
+                msgEl.classList.remove('hidden');
+            }
+        } catch (err) {
+            msgEl.textContent = '로그인 오류: ' + err.message;
+            msgEl.className = 'mt-3 text-sm text-center text-red-400';
+            msgEl.classList.remove('hidden');
+        }
+
+        loginBtn.disabled = false;
+        loginBtn.textContent = '로그인';
+    });
+
+    registerBtn?.addEventListener('click', async () => {
+        const userId = document.getElementById('registerUserId').value.trim();
+        const password = document.getElementById('registerPassword').value;
+        const email = document.getElementById('registerEmail').value.trim();
+        const msgEl = document.getElementById('registerMessage');
+
+        if (!userId || !password) {
+            msgEl.textContent = '아이디와 비밀번호를 입력하세요';
+            msgEl.className = 'mt-2 text-sm text-center text-red-400';
+            msgEl.classList.remove('hidden');
+            return;
+        }
+
+        registerBtn.disabled = true;
+        registerBtn.textContent = '가입 중...';
+
+        try {
+            const result = await window.lawpro.register(userId, password, email);
+            if (result.success) {
+                msgEl.textContent = result.message;
+                msgEl.className = 'mt-2 text-sm text-center text-green-400';
+                msgEl.classList.remove('hidden');
+
+                authState.isLoggedIn = true;
+                authState.userId = result.user_id;
+                authState.isAdmin = result.is_admin;
+
+                updateAuthUI();
+                await loadCreditBalance();
+
+                setTimeout(() => authModal.classList.add('hidden'), 1200);
+            } else {
+                msgEl.textContent = result.message;
+                msgEl.className = 'mt-2 text-sm text-center text-red-400';
+                msgEl.classList.remove('hidden');
+            }
+        } catch (err) {
+            msgEl.textContent = '가입 오류: ' + err.message;
+            msgEl.className = 'mt-2 text-sm text-center text-red-400';
+            msgEl.classList.remove('hidden');
+        }
+
+        registerBtn.disabled = false;
+        registerBtn.textContent = '회원가입';
+    });
+
+    // Enter key support
+    document.getElementById('loginPassword')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') loginBtn.click();
+    });
+    document.getElementById('registerEmail')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') registerBtn.click();
+    });
+}
+
+function updateAuthUI() {
+    const userInfoSection = document.getElementById('userInfoSection');
+    const guestSection = document.getElementById('guestSection');
+    const userIdDisplay = document.getElementById('userIdDisplay');
+    const navAdmin = document.getElementById('navAdmin');
+    const creditAdminBadge = document.getElementById('creditAdminBadge');
+
+    if (authState.isLoggedIn) {
+        userInfoSection?.classList.remove('hidden');
+        guestSection?.classList.add('hidden');
+        if (userIdDisplay) userIdDisplay.textContent = authState.userId;
+
+        if (authState.isAdmin) {
+            navAdmin?.classList.remove('hidden');
+            creditAdminBadge?.classList.remove('hidden');
+        }
+    } else {
+        userInfoSection?.classList.add('hidden');
+        guestSection?.classList.remove('hidden');
+        navAdmin?.classList.add('hidden');
+        creditAdminBadge?.classList.add('hidden');
+    }
+}
+
+async function checkLoginState() {
+    try {
+        const userId = await window.lawpro.getUserId();
+        if (userId) {
+            // Attempt to load balance to check if login is valid
+            const balance = await window.lawpro.getCreditBalance();
+            if (balance && balance.user_id) {
+                authState.isLoggedIn = true;
+                authState.userId = balance.user_id;
+                authState.isAdmin = balance.is_admin || false;
+                updateAuthUI();
+            }
+        }
+    } catch (e) {
+        // Not logged in
+    }
+}
+
+// ============================================================
+// 관리자 패널
+// ============================================================
+function setupAdminEventListeners() {
+    const addBtn = document.getElementById('adminAddCreditsBtn');
+    const refreshBtn = document.getElementById('adminRefreshUsers');
+
+    addBtn?.addEventListener('click', async () => {
+        const targetUser = document.getElementById('adminTargetUser').value.trim();
+        const amount = parseInt(document.getElementById('adminCreditAmount').value);
+        const resultEl = document.getElementById('adminAddResult');
+
+        if (!targetUser || !amount || amount <= 0) {
+            resultEl.textContent = '회원 ID와 크레딧 수량을 올바르게 입력하세요';
+            resultEl.className = 'text-sm text-red-400';
+            resultEl.classList.remove('hidden');
+            return;
+        }
+
+        try {
+            const result = await window.lawpro.adminAddCredits(targetUser, amount, '관리자 수동 부여');
+            if (result.success) {
+                resultEl.textContent = result.message;
+                resultEl.className = 'text-sm text-green-400';
+                document.getElementById('adminTargetUser').value = '';
+                document.getElementById('adminCreditAmount').value = '';
+                loadAdminUsers();
+            } else {
+                resultEl.textContent = result.message;
+                resultEl.className = 'text-sm text-red-400';
+            }
+            resultEl.classList.remove('hidden');
+        } catch (err) {
+            resultEl.textContent = '오류: ' + err.message;
+            resultEl.className = 'text-sm text-red-400';
+            resultEl.classList.remove('hidden');
+        }
+    });
+
+    refreshBtn?.addEventListener('click', loadAdminUsers);
+}
+
+async function loadAdminUsers() {
+    const tbody = document.getElementById('adminUsersList');
+    if (!tbody) return;
+
+    try {
+        const result = await window.lawpro.adminListUsers();
+        if (result.success && result.users.length > 0) {
+            tbody.innerHTML = result.users.map(u => `
+                <tr class="text-gray-300">
+                    <td class="py-3 pr-4 font-medium ${u.is_admin ? 'text-purple-400' : ''}">${u.user_id} ${u.is_admin ? '<span class="text-xs text-purple-400">(관리자)</span>' : ''}</td>
+                    <td class="py-3 pr-4 text-gray-500">${u.email || '-'}</td>
+                    <td class="py-3 pr-4 text-right font-mono ${u.is_admin ? 'text-purple-400' : 'text-primary-400'}">${u.is_admin ? '무제한' : u.credits.toLocaleString()}</td>
+                    <td class="py-3 pr-4 text-right font-mono">${u.total_pages_converted.toLocaleString()}</td>
+                    <td class="py-3 text-gray-500 text-xs">${u.registered_at ? new Date(u.registered_at).toLocaleDateString('ko-KR') : '-'}</td>
+                </tr>
+            `).join('');
+        } else {
+            tbody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-gray-500">등록된 회원이 없습니다</td></tr>';
+        }
+    } catch (err) {
+        tbody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-red-400">회원 목록 로드 실패</td></tr>';
+    }
+}
+
+// ============================================================
+// 에디터 내보내기 기능
+// ============================================================
+function setupEditorExportListeners() {
+    const saveAsBtn = document.getElementById('editorSaveAs');
+    const exportMdBtn = document.getElementById('editorExportMarkdown');
+    const exportHtmlBtn = document.getElementById('editorExportHtml');
+
+    saveAsBtn?.addEventListener('click', async () => {
+        if (editorState.viewMode === 'visual') {
+            syncVisualToCode();
+        }
+        const content = editorState.currentType === 'markdown'
+            ? elements.mdCodeEditor.value
+            : elements.htmlCodeEditor.value;
+        const defaultName = editorState.currentType === 'markdown' ? 'document.md' : 'document.html';
+
+        try {
+            const result = await window.lawpro.editorSaveAs(content, defaultName);
+            if (result) {
+                editorState.currentFile = result.path;
+                elements.editorFileName.textContent = result.name;
+                editorState.isModified = false;
+                elements.editorSaveFile.disabled = true;
+                updateEditorModifiedBadge();
+            }
+        } catch (err) {
+            alert('저장 실패: ' + err.message);
+        }
+    });
+
+    exportMdBtn?.addEventListener('click', async () => {
+        // HTML → Markdown 변환
+        if (editorState.viewMode === 'visual') {
+            syncVisualToCode();
+        }
+        const htmlContent = elements.htmlCodeEditor?.value || '';
+        if (!htmlContent.trim()) {
+            alert('변환할 HTML 내용이 없습니다. HTML 에디터에 내용을 입력하세요.');
+            return;
+        }
+
+        // Simple HTML to Markdown conversion
+        const markdown = htmlToMarkdown(htmlContent);
+
+        const defaultName = editorState.currentFile
+            ? editorState.currentFile.replace(/\.html?$/i, '.md')
+            : 'document.md';
+        const baseName = defaultName.split(/[/\\]/).pop();
+
+        try {
+            const result = await window.lawpro.editorSaveAs(markdown, baseName);
+            if (result) {
+                alert('마크다운으로 변환 저장 완료: ' + result.name);
+            }
+        } catch (err) {
+            alert('변환 저장 실패: ' + err.message);
+        }
+    });
+
+    exportHtmlBtn?.addEventListener('click', async () => {
+        // Markdown → HTML 변환
+        const mdContent = elements.mdCodeEditor?.value || '';
+        if (!mdContent.trim()) {
+            alert('변환할 Markdown 내용이 없습니다. Markdown 에디터에 내용을 입력하세요.');
+            return;
+        }
+
+        let htmlContent = '';
+        if (typeof marked !== 'undefined') {
+            htmlContent = marked.parse(mdContent);
+        } else {
+            alert('Markdown 변환 라이브러리가 로드되지 않았습니다.');
+            return;
+        }
+
+        const defaultName = editorState.currentFile
+            ? editorState.currentFile.replace(/\.md$/i, '.html')
+            : 'document.html';
+        const baseName = defaultName.split(/[/\\]/).pop();
+
+        try {
+            const result = await window.lawpro.editorSaveAs(htmlContent, baseName);
+            if (result) {
+                alert('HTML로 변환 저장 완료: ' + result.name);
+            }
+        } catch (err) {
+            alert('변환 저장 실패: ' + err.message);
+        }
+    });
+}
+
+function htmlToMarkdown(html) {
+    // Simple HTML-to-Markdown converter
+    let md = html;
+
+    // Remove doctype, html, head, body tags
+    md = md.replace(/<(!DOCTYPE|html|\/html|head|\/head|body|\/body)[^>]*>/gi, '');
+    md = md.replace(/<meta[^>]*>/gi, '');
+    md = md.replace(/<link[^>]*>/gi, '');
+    md = md.replace(/<title[^>]*>.*?<\/title>/gi, '');
+    md = md.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+    md = md.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+
+    // Headers
+    md = md.replace(/<h1[^>]*>(.*?)<\/h1>/gi, '# $1\n\n');
+    md = md.replace(/<h2[^>]*>(.*?)<\/h2>/gi, '## $1\n\n');
+    md = md.replace(/<h3[^>]*>(.*?)<\/h3>/gi, '### $1\n\n');
+    md = md.replace(/<h4[^>]*>(.*?)<\/h4>/gi, '#### $1\n\n');
+    md = md.replace(/<h5[^>]*>(.*?)<\/h5>/gi, '##### $1\n\n');
+    md = md.replace(/<h6[^>]*>(.*?)<\/h6>/gi, '###### $1\n\n');
+
+    // Bold, italic, underline
+    md = md.replace(/<(strong|b)[^>]*>(.*?)<\/(strong|b)>/gi, '**$2**');
+    md = md.replace(/<(em|i)[^>]*>(.*?)<\/(em|i)>/gi, '*$2*');
+
+    // Links
+    md = md.replace(/<a[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/gi, '[$2]($1)');
+
+    // Images
+    md = md.replace(/<img[^>]*src="([^"]*)"[^>]*alt="([^"]*)"[^>]*\/?>/gi, '![$2]($1)');
+    md = md.replace(/<img[^>]*src="([^"]*)"[^>]*\/?>/gi, '![]($1)');
+
+    // Lists
+    md = md.replace(/<li[^>]*>(.*?)<\/li>/gi, '- $1\n');
+    md = md.replace(/<\/?[ou]l[^>]*>/gi, '\n');
+
+    // Paragraphs and line breaks
+    md = md.replace(/<br\s*\/?>/gi, '\n');
+    md = md.replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n');
+    md = md.replace(/<div[^>]*>(.*?)<\/div>/gi, '$1\n');
+
+    // Horizontal rule
+    md = md.replace(/<hr[^>]*\/?>/gi, '\n---\n\n');
+
+    // Code
+    md = md.replace(/<code[^>]*>(.*?)<\/code>/gi, '`$1`');
+    md = md.replace(/<pre[^>]*>(.*?)<\/pre>/gis, '\n```\n$1\n```\n\n');
+
+    // Tables (basic)
+    md = md.replace(/<table[^>]*>/gi, '\n');
+    md = md.replace(/<\/table>/gi, '\n');
+    md = md.replace(/<thead[^>]*>/gi, '');
+    md = md.replace(/<\/thead>/gi, '');
+    md = md.replace(/<tbody[^>]*>/gi, '');
+    md = md.replace(/<\/tbody>/gi, '');
+    md = md.replace(/<tr[^>]*>(.*?)<\/tr>/gis, (match, content) => {
+        const cells = content.replace(/<t[hd][^>]*>(.*?)<\/t[hd]>/gis, '| $1 ').trim();
+        return cells + '|\n';
+    });
+
+    // Remove remaining HTML tags
+    md = md.replace(/<[^>]+>/g, '');
+
+    // Decode HTML entities
+    md = md.replace(/&amp;/g, '&');
+    md = md.replace(/&lt;/g, '<');
+    md = md.replace(/&gt;/g, '>');
+    md = md.replace(/&quot;/g, '"');
+    md = md.replace(/&nbsp;/g, ' ');
+
+    // Clean up extra whitespace
+    md = md.replace(/\n{3,}/g, '\n\n');
+    md = md.trim();
+
+    return md;
+}
+
+function updateEditorModifiedBadge() {
+    const badge = document.getElementById('editorModifiedBadge');
+    if (badge) {
+        if (editorState.isModified) {
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+    }
+}
+
+// ============================================================
 // 앱 시작
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
     init();
     setupCreditEventListeners();
     setupEditorEventListeners();
+    setupEditorExportListeners();
     setupTourEventListeners();
     setupCorrectionEventListeners();
+    setupAuthEventListeners();
+    setupAdminEventListeners();
+
+    // 로그인 상태 확인
+    checkLoginState();
 
     // 첫 방문 확인 (약간의 지연 후)
     setTimeout(checkFirstVisit, 500);

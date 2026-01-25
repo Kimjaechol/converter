@@ -1061,6 +1061,136 @@ ipcMain.handle('check-credits', async (event, pageCount) => {
 });
 
 // ============================================================
+// IPC 핸들러: 회원 가입 / 로그인 / 관리자
+// ============================================================
+ipcMain.handle('register', async (event, userId, password, email) => {
+    return new Promise((resolve) => {
+        const pythonCmd = getPythonCommand();
+        if (!pythonCmd) {
+            resolve({ success: false, message: 'Python 3이 설치되어 있지 않습니다.' });
+            return;
+        }
+
+        const scriptPath = path.join(enginePath, 'credit_manager.py');
+        const args = [scriptPath, 'register', userId, password];
+
+        const proc = spawn(pythonCmd, args, {
+            cwd: enginePath,
+            env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+        });
+
+        let output = '';
+        proc.stdout.on('data', (data) => { output += data.toString(); });
+        proc.stderr.on('data', (data) => { output += data.toString(); });
+
+        proc.on('close', (code) => {
+            try {
+                const result = JSON.parse(output);
+                if (result.success && result.user_id) {
+                    store.set('userId', result.user_id);
+                }
+                resolve(result);
+            } catch (e) {
+                resolve({ success: false, message: output || '가입 처리 오류' });
+            }
+        });
+    });
+});
+
+ipcMain.handle('login', async (event, userId, password) => {
+    return new Promise((resolve) => {
+        const pythonCmd = getPythonCommand();
+        if (!pythonCmd) {
+            resolve({ success: false, message: 'Python 3이 설치되어 있지 않습니다.' });
+            return;
+        }
+
+        const scriptPath = path.join(enginePath, 'credit_manager.py');
+        const proc = spawn(pythonCmd, [scriptPath, 'login', userId, password], {
+            cwd: enginePath,
+            env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+        });
+
+        let output = '';
+        proc.stdout.on('data', (data) => { output += data.toString(); });
+        proc.stderr.on('data', (data) => { output += data.toString(); });
+
+        proc.on('close', (code) => {
+            try {
+                const result = JSON.parse(output);
+                if (result.success && result.user_id) {
+                    store.set('userId', result.user_id);
+                }
+                resolve(result);
+            } catch (e) {
+                resolve({ success: false, message: output || '로그인 처리 오류' });
+            }
+        });
+    });
+});
+
+ipcMain.handle('get-user-id', async () => {
+    return store.get('userId', '');
+});
+
+ipcMain.handle('admin-add-credits', async (event, targetUserId, amount, reason) => {
+    return new Promise((resolve) => {
+        const pythonCmd = getPythonCommand();
+        if (!pythonCmd) {
+            resolve({ success: false, message: 'Python 3이 설치되어 있지 않습니다.' });
+            return;
+        }
+
+        const scriptPath = path.join(enginePath, 'credit_manager.py');
+        const args = [scriptPath, 'admin-add', targetUserId, String(amount)];
+        if (reason) args.push(reason);
+
+        const proc = spawn(pythonCmd, args, {
+            cwd: enginePath,
+            env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+        });
+
+        let output = '';
+        proc.stdout.on('data', (data) => { output += data.toString(); });
+
+        proc.on('close', (code) => {
+            try {
+                resolve(JSON.parse(output));
+            } catch (e) {
+                resolve({ success: false, message: output || '처리 오류' });
+            }
+        });
+    });
+});
+
+ipcMain.handle('admin-list-users', async () => {
+    return new Promise((resolve) => {
+        const pythonCmd = getPythonCommand();
+        if (!pythonCmd) {
+            resolve({ success: false, users: [] });
+            return;
+        }
+
+        const scriptPath = path.join(enginePath, 'credit_manager.py');
+        const proc = spawn(pythonCmd, [scriptPath, 'admin-list'], {
+            cwd: enginePath,
+            env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+        });
+
+        let output = '';
+        proc.stdout.on('data', (data) => { output += data.toString(); });
+
+        proc.on('close', (code) => {
+            try {
+                resolve(JSON.parse(output));
+            } catch (e) {
+                resolve({ success: false, users: [] });
+            }
+        });
+    });
+});
+
+// ============================================================
 // 앱 이벤트
 // ============================================================
 app.whenReady().then(() => {
