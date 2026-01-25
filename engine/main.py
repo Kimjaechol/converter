@@ -31,7 +31,11 @@ SUPPORTED_EXTENSIONS = (
     '.docx', '.doc',      # Word
     '.xlsx', '.xls',      # Excel
     '.pptx', '.ppt',      # PowerPoint
-    '.pdf'                # PDF (디지털/이미지)
+    '.pdf',               # PDF (디지털/이미지)
+    '.jpg', '.jpeg',      # 이미지 파일
+    '.png', '.bmp',
+    '.tiff', '.tif',
+    '.gif', '.webp'
 )
 
 
@@ -67,6 +71,8 @@ def main():
         [2] upstage_key: Upstage API 키 (선택)
         [3] generate_clean: Clean HTML 생성 여부 (true/false, 기본: true)
         [4] generate_markdown: 마크다운 생성 여부 (true/false, 기본: true)
+        [5] gemini_api_key: Gemini API 키 (Upstage 변환 후 자동 교정용, 선택)
+        [6] enable_gemini_correction: Gemini 교정 활성화 여부 (true/false, 기본: true)
     """
     try:
         # 인자 파싱
@@ -80,6 +86,10 @@ def main():
         # 출력 옵션 (기본값: 모두 생성)
         generate_clean = sys.argv[3].lower() != 'false' if len(sys.argv) > 3 else True
         generate_markdown = sys.argv[4].lower() != 'false' if len(sys.argv) > 4 else True
+
+        # Gemini 교정 옵션
+        gemini_api_key = sys.argv[5] if len(sys.argv) > 5 else os.environ.get('GEMINI_API_KEY', '')
+        enable_gemini_correction = sys.argv[6].lower() != 'false' if len(sys.argv) > 6 else True
 
         # 입력 폴더 검증
         if not os.path.isdir(input_folder):
@@ -95,8 +105,19 @@ def main():
             api_key=upstage_key,
             output_folder=output_folder,
             generate_clean_html=generate_clean,
-            generate_markdown=generate_markdown
+            generate_markdown=generate_markdown,
+            gemini_api_key=gemini_api_key,
+            enable_gemini_correction=enable_gemini_correction
         )
+
+        # Gemini 교정 상태 로그
+        if enable_gemini_correction and gemini_api_key:
+            emit_message("log", msg="Gemini 3.0 Flash 자동 교정: 활성화 (모든 문서 변환 시 적용)")
+        else:
+            if not gemini_api_key:
+                emit_message("log", msg="Gemini 3.0 Flash 자동 교정: 비활성화 (API 키 미설정)")
+            elif not enable_gemini_correction:
+                emit_message("log", msg="Gemini 3.0 Flash 자동 교정: 비활성화 (사용자 설정)")
 
         # 파일 수집
         tasks = collect_files(input_folder)
@@ -105,9 +126,10 @@ def main():
             emit_message("warning", msg="변환할 파일이 없습니다")
             return 0
 
-        # 워커 수 결정 (이미지 PDF가 있으면 API 제한 적용)
-        has_pdf = any(f.lower().endswith('.pdf') for f in tasks)
-        workers = MAX_WORKERS_API if has_pdf else MAX_WORKERS_LOCAL
+        # 워커 수 결정 (이미지 PDF/이미지 파일이 있으면 API 제한 적용)
+        api_extensions = ('.pdf', '.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.gif', '.webp')
+        has_api_files = any(f.lower().endswith(api_extensions) for f in tasks)
+        workers = MAX_WORKERS_API if has_api_files else MAX_WORKERS_LOCAL
 
         # 초기화 메시지
         emit_message("init",
@@ -121,7 +143,7 @@ def main():
             "success": 0,
             "fail": 0,
             "total_time": 0,
-            "by_method": {"local": 0, "upstage": 0}
+            "by_method": {"local": 0, "upstage": 0, "local_gemini": 0, "upstage_gemini": 0}
         }
 
         start_time = time.time()
@@ -144,7 +166,11 @@ def main():
                     if result.get("status") == "success":
                         stats["success"] += 1
                         method = result.get("method", "local").lower()
-                        if "upstage" in method:
+                        if "gemini" in method and "upstage" in method:
+                            stats["by_method"]["upstage_gemini"] += 1
+                        elif "gemini" in method:
+                            stats["by_method"]["local_gemini"] += 1
+                        elif "upstage" in method:
                             stats["by_method"]["upstage"] += 1
                         else:
                             stats["by_method"]["local"] += 1

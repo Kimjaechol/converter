@@ -12,6 +12,8 @@ Routing Logic:
 import os
 import io
 import re
+import sys
+import json
 import time
 import base64
 import zipfile
@@ -48,6 +50,13 @@ try:
 except ImportError:
     HAS_RATE_LIMITER = False
 
+# Gemini 3.0 Flash 교정 (Upstage 변환 후 자동 교정)
+try:
+    from gemini_correction import correct_html_with_gemini, HAS_GENAI
+    HAS_GEMINI_CORRECTION = HAS_GENAI
+except ImportError:
+    HAS_GEMINI_CORRECTION = False
+
 
 class FileProcessor:
     """하이브리드 문서 처리기"""
@@ -63,7 +72,9 @@ class FileProcessor:
                  generate_clean_html: bool = True,
                  generate_markdown: bool = True,
                  check_credits: bool = True,
-                 api_key: str = None):  # api_key는 하위호환을 위해 유지 (사용되지 않음)
+                 api_key: str = None,
+                 gemini_api_key: str = None,
+                 enable_gemini_correction: bool = True):
         """
         FileProcessor 초기화
 
@@ -73,6 +84,8 @@ class FileProcessor:
             generate_markdown: Markdown 생성 여부
             check_credits: 크레딧 확인 여부
             api_key: (deprecated) 하위호환용 - 관리자 설정에서 자동 로드됨
+            gemini_api_key: Gemini API 키 (교정 기능용)
+            enable_gemini_correction: Gemini 자동 교정 활성화 여부
         """
         self.output_folder = output_folder
         self.generate_clean_html = generate_clean_html
@@ -85,6 +98,10 @@ class FileProcessor:
             self.api_key = admin_config.upstage_api_key
         else:
             self.api_key = api_key or ""
+
+        # Gemini 교정 설정
+        self.enable_gemini_correction = enable_gemini_correction and HAS_GEMINI_CORRECTION
+        self.gemini_api_key = gemini_api_key or os.environ.get('GEMINI_API_KEY', '')
 
         # Cleaner 초기화
         if HAS_CLEANER and (generate_clean_html or generate_markdown):
@@ -153,8 +170,33 @@ class FileProcessor:
                     method = "Upstage API"
                     content = self._convert_image_pdf_upstage(file_path)
 
+            elif ext in ('.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.gif', '.webp'):
+                # 이미지 파일 → Upstage API로 OCR
+                if self.api_key:
+                    method = "Upstage API"
+                    content = self._convert_image_pdf_upstage(file_path)
+                else:
+                    content = "<p>이미지 파일은 Upstage API 키가 필요합니다.</p>"
+
             else:
                 raise ValueError(f"지원하지 않는 파일 형식: {ext}")
+
+            # === Gemini 3.0 Flash 자동 교정 (모든 문서 유형 공통) ===
+            if self.enable_gemini_correction and self.gemini_api_key and content:
+                # 에러 응답이 아닌 경우에만 교정
+                if not content.startswith("<p>API") and not content.startswith("<p>오류") and not content.startswith("<p>이미지"):
+                    try:
+                        content = correct_html_with_gemini(
+                            html_content=content,
+                            original_file_path=file_path,
+                            api_key=self.gemini_api_key
+                        )
+                        method = method + " + Gemini 교정" if method != "Local" else "Local + Gemini 교정"
+                    except Exception as e:
+                        print(json.dumps({
+                            "type": "warning",
+                            "msg": f"Gemini 교정 실패 (원본 유지): {str(e)}"
+                        }), file=sys.stderr, flush=True)
 
             # === 3-Way Output 저장 ===
 

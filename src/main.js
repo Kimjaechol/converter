@@ -37,6 +37,7 @@ const store = new Store({
         selectedAI: 'claude',  // claude, gemini, openai
         generateCleanHtml: true,
         generateMarkdown: true,
+        enableGeminiCorrection: true,  // Gemini 3.0 Flash 자동 교정 (이미지 PDF 변환 시)
         theme: 'dark'
     }
 });
@@ -201,18 +202,24 @@ ipcMain.handle('start-conversion', async (event, { folderPath, apiKey, generateC
         const cleanOpt = generateClean !== undefined ? generateClean : store.get('generateCleanHtml', true);
         const mdOpt = generateMarkdown !== undefined ? generateMarkdown : store.get('generateMarkdown', true);
 
+        // Gemini 교정 옵션
+        const geminiKey = store.get('geminiKey', '') || process.env.GEMINI_API_KEY || '';
+        const enableGeminiCorrection = store.get('enableGeminiCorrection', true);
+
         // Python 프로세스 시작 (추가 인자 포함)
         const args = [
             scriptPath,
             folderPath,
             apiKey || '',
             cleanOpt ? 'true' : 'false',
-            mdOpt ? 'true' : 'false'
+            mdOpt ? 'true' : 'false',
+            geminiKey,
+            enableGeminiCorrection ? 'true' : 'false'
         ];
 
         pythonProcess = spawn(pythonCmd, args, {
             cwd: enginePath,
-            env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+            env: { ...process.env, PYTHONIOENCODING: 'utf-8', GEMINI_API_KEY: geminiKey }
         });
 
         pythonProcess.stdout.on('data', (data) => {
@@ -232,10 +239,21 @@ ipcMain.handle('start-conversion', async (event, { folderPath, apiKey, generateC
         });
 
         pythonProcess.stderr.on('data', (data) => {
-            mainWindow?.webContents.send('conversion-log', {
-                type: 'error',
-                msg: data.toString()
-            });
+            const text = data.toString();
+            const lines = text.split('\n').filter(Boolean);
+            for (const line of lines) {
+                try {
+                    // Gemini 교정 로그 등 JSON 형식의 stderr 처리
+                    const parsed = JSON.parse(line);
+                    mainWindow?.webContents.send('conversion-log', parsed);
+                } catch (e) {
+                    // JSON이 아닌 일반 에러 메시지
+                    mainWindow?.webContents.send('conversion-log', {
+                        type: 'log',
+                        msg: line
+                    });
+                }
+            }
         });
 
         pythonProcess.on('close', (code) => {
@@ -395,6 +413,16 @@ ipcMain.handle('set-gemini-model', async (event, model) => {
 
 ipcMain.handle('get-gemini-model', async () => {
     return store.get('geminiModel', 'flash-2.0');
+});
+
+// Gemini 3.0 Flash 자동 교정 설정 (변환 시 적용)
+ipcMain.handle('set-gemini-correction', async (event, enabled) => {
+    store.set('enableGeminiCorrection', enabled);
+    return { success: true };
+});
+
+ipcMain.handle('get-gemini-correction', async () => {
+    return store.get('enableGeminiCorrection', true);
 });
 
 // Gemini 검수 실행

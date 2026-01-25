@@ -59,6 +59,13 @@ contextBridge.exposeInMainWorld('lawpro', {
         return () => ipcRenderer.removeListener('gemini-log', handler);
     },
 
+    // Gemini 3.0 Flash 자동 교정 (변환 시 적용)
+    setGeminiCorrection: (enabled) =>
+        ipcRenderer.invoke('set-gemini-correction', enabled),
+
+    getGeminiCorrection: () =>
+        ipcRenderer.invoke('get-gemini-correction'),
+
     // ========================================
     // OpenAI 설정 및 실행
     // ========================================
