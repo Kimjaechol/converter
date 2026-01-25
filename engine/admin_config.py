@@ -50,6 +50,7 @@ class AdminConfig:
         """환경 변수에서 설정 로드"""
         env_keys = {
             'UPSTAGE_API_KEY': 'upstage_api_key',
+            'GEMINI_API_KEY': 'gemini_api_key',
             'LAWPRO_ADMIN_KEY': 'admin_key'
         }
 
@@ -63,6 +64,11 @@ class AdminConfig:
     def upstage_api_key(self) -> str:
         """Upstage API 키 반환"""
         return self._config.get('upstage_api_key', '')
+
+    @property
+    def gemini_api_key(self) -> str:
+        """Gemini API 키 반환"""
+        return self._config.get('gemini_api_key', '')
 
     @property
     def is_configured(self) -> bool:

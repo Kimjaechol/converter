@@ -26,6 +26,9 @@ mcp[cli]>=1.0.0
 # Gemini Integration
 google-generativeai>=0.3.0
 
+# Gemini 3.0 Flash 자동 교정 (google-genai SDK)
+google-genai>=0.3.0
+
 # OpenAI Integration
 openai>=1.0.0
 

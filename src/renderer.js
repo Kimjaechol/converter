@@ -73,6 +73,8 @@ const elements = {
     // 출력 옵션
     chkCleanHtml: document.getElementById('chkCleanHtml'),
     chkMarkdown: document.getElementById('chkMarkdown'),
+    chkGeminiCorrection: document.getElementById('chkGeminiCorrection'),
+    geminiCorrectionBadge: document.getElementById('geminiCorrectionBadge'),
 
     // AI 검수 페이지
     connectClaude: document.getElementById('connectClaude'),
@@ -238,6 +240,13 @@ async function loadSavedSettings() {
     elements.chkCleanHtml.checked = outputOptions.generateCleanHtml;
     elements.chkMarkdown.checked = outputOptions.generateMarkdown;
 
+    // Gemini 3.0 Flash 자동 교정 옵션
+    const geminiCorrectionEnabled = await window.lawpro.getGeminiCorrection();
+    if (elements.chkGeminiCorrection) {
+        elements.chkGeminiCorrection.checked = geminiCorrectionEnabled;
+    }
+    updateGeminiCorrectionBadge(geminiKey, geminiCorrectionEnabled);
+
     // 마지막 폴더
     const lastFolder = await window.lawpro.getLastFolder();
     if (lastFolder) {
@@ -305,6 +314,16 @@ function setupEventListeners() {
     }
     if (elements.chkMarkdown) {
         elements.chkMarkdown.addEventListener('change', saveOutputOptions);
+    }
+
+    // Gemini 교정 토글
+    if (elements.chkGeminiCorrection) {
+        elements.chkGeminiCorrection.addEventListener('change', async () => {
+            const enabled = elements.chkGeminiCorrection.checked;
+            await window.lawpro.setGeminiCorrection(enabled);
+            const geminiKey = await window.lawpro.getGeminiKey();
+            updateGeminiCorrectionBadge(geminiKey, enabled);
+        });
     }
 
     // API 키 저장
@@ -492,6 +511,11 @@ async function startConversion() {
     addLog('info', '변환을 시작합니다...');
     addLog('info', `출력 옵션: View HTML (필수), Clean HTML (${elements.chkCleanHtml.checked ? 'O' : 'X'}), Markdown (${elements.chkMarkdown.checked ? 'O' : 'X'})`);
 
+    const geminiCorrectionOn = elements.chkGeminiCorrection && elements.chkGeminiCorrection.checked;
+    if (geminiCorrectionOn) {
+        addLog('info', 'Gemini 3.0 Flash 자동 교정: 활성화 (이미지 PDF/이미지 파일 변환 시 원본 대조 교정)');
+    }
+
     try {
         const apiKey = elements.upstageKeyInput.value;
         const generateClean = elements.chkCleanHtml.checked;
@@ -647,6 +671,9 @@ async function saveGeminiKey() {
         if (elements.settingsGeminiKey) elements.settingsGeminiKey.value = key;
         elements.geminiConnectionBadge.textContent = '설정됨';
         elements.geminiConnectionBadge.className = 'px-2 py-1 rounded-full text-xs bg-green-600/20 text-green-400';
+        // Gemini 교정 뱃지도 업데이트
+        const correctionEnabled = elements.chkGeminiCorrection ? elements.chkGeminiCorrection.checked : true;
+        updateGeminiCorrectionBadge(key, correctionEnabled);
         alert('Gemini API 키가 저장되었습니다.');
     } else {
         alert('저장 실패: ' + (result.error || '알 수 없는 오류'));
@@ -665,6 +692,9 @@ async function saveGeminiKeyFromSettings() {
         elements.geminiKeyInput.value = key;
         elements.geminiConnectionBadge.textContent = '설정됨';
         elements.geminiConnectionBadge.className = 'px-2 py-1 rounded-full text-xs bg-green-600/20 text-green-400';
+        // Gemini 교정 뱃지도 업데이트
+        const correctionEnabled = elements.chkGeminiCorrection ? elements.chkGeminiCorrection.checked : true;
+        updateGeminiCorrectionBadge(key, correctionEnabled);
         alert('Gemini API 키가 저장되었습니다.');
     } else {
         alert('저장 실패: ' + (result.error || '알 수 없는 오류'));
@@ -820,6 +850,25 @@ async function installPackages() {
 
     elements.installDeps.disabled = false;
     elements.installDeps.textContent = '필수 패키지 설치';
+}
+
+// ============================================================
+// Gemini 교정 뱃지 업데이트
+// ============================================================
+function updateGeminiCorrectionBadge(geminiKey, enabled) {
+    const badge = elements.geminiCorrectionBadge;
+    if (!badge) return;
+
+    if (!geminiKey) {
+        badge.textContent = '미설정';
+        badge.className = 'px-2 py-0.5 rounded-full text-xs bg-gray-700 text-gray-400';
+    } else if (!enabled) {
+        badge.textContent = '비활성';
+        badge.className = 'px-2 py-0.5 rounded-full text-xs bg-yellow-600/20 text-yellow-400';
+    } else {
+        badge.textContent = '활성';
+        badge.className = 'px-2 py-0.5 rounded-full text-xs bg-green-600/20 text-green-400';
+    }
 }
 
 // ============================================================
