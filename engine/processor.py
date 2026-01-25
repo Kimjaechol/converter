@@ -31,7 +31,7 @@ except ImportError:
 
 # 크레딧 관리
 try:
-    from credit_manager import get_credit_manager
+    from credit_manager import get_credit_manager, get_credit_per_page
     HAS_CREDIT = True
 except ImportError:
     HAS_CREDIT = False
@@ -180,6 +180,18 @@ class FileProcessor:
 
             else:
                 raise ValueError(f"지원하지 않는 파일 형식: {ext}")
+
+            # === 일반 문서 크레딧 차감 (로컬 변환 문서) ===
+            if self.credit_manager and content and method == "Local":
+                # 에러 응답이 아닌 경우에만
+                if not content.startswith("<p>API") and not content.startswith("<p>오류"):
+                    try:
+                        page_count = self._estimate_page_count(file_path, content, ext)
+                        if page_count > 0 and HAS_CREDIT:
+                            credit_per_page = get_credit_per_page(file_path, is_digital_pdf=True)
+                            self.credit_manager.deduct_credits(page_count, filename, credit_per_page)
+                    except Exception:
+                        pass  # 크레딧 차감 실패해도 변환은 계속
 
             # === Gemini 3.0 Flash 자동 교정 (모든 문서 유형 공통) ===
             if self.enable_gemini_correction and self.gemini_api_key and content:
@@ -857,7 +869,8 @@ class FileProcessor:
 
         # 크레딧 확인 (크레딧 시스템이 있는 경우)
         if self.credit_manager:
-            has_credits, required, msg = self.credit_manager.check_credits(total_pages)
+            from credit_manager import CREDIT_PER_PAGE_OCR
+            has_credits, required, msg = self.credit_manager.check_credits(total_pages, CREDIT_PER_PAGE_OCR)
             if not has_credits:
                 raise ValueError(f"크레딧 부족: {total_pages}페이지 변환에 {required:,}원 필요. 현재 잔액을 확인해주세요.")
 
@@ -869,7 +882,7 @@ class FileProcessor:
 
             # 성공 시 크레딧 차감
             if self.credit_manager and result and not result.startswith("<p>"):
-                self.credit_manager.deduct_credits(total_pages, filename)
+                self.credit_manager.deduct_credits(total_pages, filename, CREDIT_PER_PAGE_OCR)
 
             return result
 
@@ -917,7 +930,7 @@ class FileProcessor:
 
             # 성공 시 크레딧 차감 (처리된 페이지만)
             if self.credit_manager and pages_processed > 0:
-                self.credit_manager.deduct_credits(pages_processed, filename)
+                self.credit_manager.deduct_credits(pages_processed, filename, CREDIT_PER_PAGE_OCR)
 
         finally:
             # 임시 파일 정리 (지연 삭제로 Windows 파일 잠금 문제 해결)
@@ -1087,6 +1100,39 @@ class FileProcessor:
                     time_module.sleep(3)
                     continue
                 return f"<p>API 오류: {str(e)}</p>"
+
+    # ============================================================
+    # 페이지 수 추정 (크레딧 차감용)
+    # ============================================================
+    def _estimate_page_count(self, file_path: str, content: str, ext: str) -> int:
+        """일반 문서의 페이지 수 추정"""
+        try:
+            if ext == '.pdf':
+                # 디지털 PDF: 실제 페이지 수
+                try:
+                    from PyPDF2 import PdfReader
+                    reader = PdfReader(file_path)
+                    return len(reader.pages)
+                except Exception:
+                    return max(1, content.count('data-page='))
+
+            elif ext in ('.xlsx', '.xls'):
+                # Excel: 시트 수
+                return max(1, content.count('data-sheet='))
+
+            elif ext in ('.pptx', '.ppt'):
+                # PowerPoint: 슬라이드 수
+                return max(1, content.count('data-slide='))
+
+            elif ext in ('.docx', '.doc', '.hwpx', '.hwp'):
+                # Word/HWP: 내용 길이 기반 추정 (약 3000자/페이지)
+                text_len = len(re.sub(r'<[^>]+>', '', content))
+                return max(1, text_len // 3000 + (1 if text_len % 3000 > 0 else 0))
+
+            else:
+                return 1
+        except Exception:
+            return 1
 
     # ============================================================
     # HTML 저장

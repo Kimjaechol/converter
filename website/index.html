@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LawPro Fast Converter - 문서를 완벽하게 HTML로 변환</title>
+  <meta name="description" content="HWPX, DOCX, XLSX, PPTX, PDF 등 모든 문서를 HTML로 완벽 변환. AI 기반 OCR과 자동 교정으로 최고 품질의 변환 결과를 제공합니다." />
+  <meta name="keywords" content="문서 변환, HTML 변환, HWPX, DOCX, PDF, OCR, AI 교정, LawPro" />
+  <meta property="og:title" content="LawPro Fast Converter" />
+  <meta property="og:description" content="문서를 완벽하게 HTML로 변환하는 스마트 컨버터" />
+  <meta property="og:type" content="website" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Noto Sans KR"', 'system-ui', '-apple-system', 'sans-serif'],
+          },
+          colors: {
+            primary: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              200: '#c7d2fe',
+              300: '#a5b4fc',
+              400: '#818cf8',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+              800: '#3730a3',
+              900: '#312e81',
+              950: '#1e1b4b',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Noto Sans KR -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <style>
+    * {
+      font-family: 'Noto Sans KR', system-ui, -apple-system, sans-serif;
+    }
+
+    /* Smooth scrolling */
+    html {
+      scroll-behavior: smooth;
+    }
+
+    /* Animated gradient background for hero */
+    .hero-gradient {
+      background: linear-gradient(135deg, #0f0a2e 0%, #1a1145 25%, #1e1b4b 50%, #1a0f3c 75%, #0d0b2e 100%);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-gradient::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(ellipse at 30% 50%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+                  radial-gradient(ellipse at 70% 20%, rgba(139, 92, 246, 0.12) 0%, transparent 50%),
+                  radial-gradient(ellipse at 50% 80%, rgba(79, 70, 229, 0.1) 0%, transparent 50%);
+      animation: heroFloat 20s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    @keyframes heroFloat {
+      0%, 100% { transform: translate(0, 0) rotate(0deg); }
+      25% { transform: translate(2%, -3%) rotate(1deg); }
+      50% { transform: translate(-1%, 2%) rotate(-1deg); }
+      75% { transform: translate(-3%, -1%) rotate(0.5deg); }
+    }
+
+    /* Glassmorphism cards */
+    .glass-card {
+      background: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .glass-card:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(129, 140, 248, 0.3);
+      transform: translateY(-4px);
+      box-shadow: 0 20px 40px rgba(99, 102, 241, 0.15);
+    }
+
+    /* Pricing card special */
+    .pricing-card {
+      background: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .pricing-card:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(129, 140, 248, 0.4);
+      transform: translateY(-6px);
+      box-shadow: 0 24px 48px rgba(99, 102, 241, 0.2);
+    }
+
+    .pricing-card.featured {
+      border-color: rgba(129, 140, 248, 0.4);
+      background: rgba(99, 102, 241, 0.08);
+    }
+
+    /* Step connector line */
+    .step-connector {
+      position: relative;
+    }
+
+    .step-connector::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      right: -50%;
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, rgba(129, 140, 248, 0.5), rgba(139, 92, 246, 0.5));
+      transform: translateY(-50%);
+    }
+
+    @media (max-width: 768px) {
+      .step-connector::after {
+        display: none;
+      }
+    }
+
+    /* Scroll animation */
+    .scroll-reveal {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1), transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .scroll-reveal.revealed {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Glow button */
+    .glow-btn {
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .glow-btn::before {
+      content: '';
+      position: absolute;
+      top: -2px;
+      left: -2px;
+      right: -2px;
+      bottom: -2px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6, #a78bfa, #6366f1);
+      border-radius: inherit;
+      z-index: -1;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .glow-btn:hover::before {
+      opacity: 1;
+    }
+
+    .glow-btn:hover {
+      box-shadow: 0 0 30px rgba(99, 102, 241, 0.4);
+    }
+
+    /* Navbar */
+    .nav-glass {
+      background: rgba(15, 10, 46, 0.8);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      transition: all 0.3s ease;
+    }
+
+    .nav-glass.scrolled {
+      background: rgba(15, 10, 46, 0.95);
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Gradient text */
+    .gradient-text {
+      background: linear-gradient(135deg, #818cf8, #a78bfa, #c4b5fd);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .gradient-text-warm {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* Floating particles */
+    .particle {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+      opacity: 0.3;
+      animation: particleFloat linear infinite;
+    }
+
+    @keyframes particleFloat {
+      0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+      10% { opacity: 0.3; }
+      90% { opacity: 0.3; }
+      100% { transform: translateY(-100px) rotate(720deg); opacity: 0; }
+    }
+
+    /* Section background subtle pattern */
+    .section-dark {
+      background: linear-gradient(180deg, #0f0a2e 0%, #0d0926 50%, #0f0a2e 100%);
+    }
+
+    .section-darker {
+      background: linear-gradient(180deg, #0d0926 0%, #0a0720 50%, #0d0926 100%);
+    }
+
+    /* Badge pulse */
+    .badge-pulse {
+      animation: badgePulse 2s ease-in-out infinite;
+    }
+
+    @keyframes badgePulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
+      50% { box-shadow: 0 0 0 8px rgba(99, 102, 241, 0); }
+    }
+
+    /* Step number glow */
+    .step-number {
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+      box-shadow: 0 0 30px rgba(99, 102, 241, 0.3);
+    }
+
+    /* Feature icon container */
+    .feature-icon {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.15));
+      border: 1px solid rgba(129, 140, 248, 0.2);
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #0f0a2e;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(99, 102, 241, 0.3);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(99, 102, 241, 0.5);
+    }
+
+    /* Mobile menu */
+    .mobile-menu {
+      transform: translateX(100%);
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .mobile-menu.open {
+      transform: translateX(0);
+    }
+
+    /* Divider gradient */
+    .divider-gradient {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(129, 140, 248, 0.3), transparent);
+    }
+  </style>
+</head>
+<body class="bg-[#0f0a2e] text-white antialiased">
+
+  <!-- Floating Particles Background -->
+  <div id="particles" class="fixed inset-0 pointer-events-none z-0" aria-hidden="true"></div>
+
+  <!-- Navigation -->
+  <nav id="navbar" class="nav-glass fixed top-0 left-0 right-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16 sm:h-20">
+        <!-- Logo -->
+        <a href="#" class="flex items-center gap-2 sm:gap-3 group">
+          <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 group-hover:shadow-indigo-500/40 transition-shadow">
+            <svg class="w-5 h-5 sm:w-6 sm:h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <span class="text-lg sm:text-xl font-bold tracking-tight">
+            <span class="text-white">LawPro</span>
+            <span class="gradient-text ml-1">Fast Converter</span>
+          </span>
+        </a>
+
+        <!-- Desktop Nav Links -->
+        <div class="hidden md:flex items-center gap-1">
+          <a href="#features" class="px-4 py-2 text-sm text-gray-300 hover:text-white rounded-lg hover:bg-white/5 transition-all">기능</a>
+          <a href="#pricing" class="px-4 py-2 text-sm text-gray-300 hover:text-white rounded-lg hover:bg-white/5 transition-all">요금</a>
+          <a href="#how-it-works" class="px-4 py-2 text-sm text-gray-300 hover:text-white rounded-lg hover:bg-white/5 transition-all">사용 방법</a>
+          <a href="#download" class="ml-3 px-5 py-2.5 text-sm font-semibold bg-gradient-to-r from-indigo-500 to-violet-600 rounded-xl hover:from-indigo-400 hover:to-violet-500 transition-all shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40">
+            다운로드
+          </a>
+        </div>
+
+        <!-- Mobile Menu Button -->
+        <button id="mobileMenuBtn" class="md:hidden p-2 text-gray-300 hover:text-white rounded-lg hover:bg-white/5 transition-all" aria-label="메뉴 열기">
+          <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Mobile Menu -->
+    <div id="mobileMenu" class="mobile-menu fixed top-0 right-0 w-72 h-full bg-[#0f0a2e]/95 backdrop-blur-xl border-l border-white/5 md:hidden z-50">
+      <div class="p-6">
+        <button id="mobileMenuClose" class="absolute top-5 right-5 p-2 text-gray-300 hover:text-white rounded-lg hover:bg-white/5" aria-label="메뉴 닫기">
+          <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+        <div class="mt-12 flex flex-col gap-2">
+          <a href="#features" class="mobile-nav-link px-4 py-3 text-gray-300 hover:text-white rounded-xl hover:bg-white/5 transition-all text-lg">기능</a>
+          <a href="#pricing" class="mobile-nav-link px-4 py-3 text-gray-300 hover:text-white rounded-xl hover:bg-white/5 transition-all text-lg">요금</a>
+          <a href="#how-it-works" class="mobile-nav-link px-4 py-3 text-gray-300 hover:text-white rounded-xl hover:bg-white/5 transition-all text-lg">사용 방법</a>
+          <a href="#download" class="mobile-nav-link mt-4 px-5 py-3 text-center font-semibold bg-gradient-to-r from-indigo-500 to-violet-600 rounded-xl hover:from-indigo-400 hover:to-violet-500 transition-all text-lg">
+            다운로드
+          </a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <section class="hero-gradient min-h-screen flex items-center justify-center relative pt-20">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 sm:py-32 text-center relative z-10">
+      <!-- Badge -->
+      <div class="scroll-reveal inline-flex items-center gap-2 px-4 py-2 rounded-full border border-indigo-400/30 bg-indigo-500/10 mb-8 badge-pulse">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span class="text-sm text-indigo-200 font-medium">v1.0 출시 - 지금 무료로 시작하세요</span>
+      </div>
+
+      <!-- Main Heading -->
+      <h1 class="scroll-reveal text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold leading-tight tracking-tight mb-6">
+        <span class="block text-white">LawPro</span>
+        <span class="block gradient-text mt-2">Fast Converter</span>
+      </h1>
+
+      <!-- Subtitle -->
+      <p class="scroll-reveal text-lg sm:text-xl md:text-2xl text-gray-300 max-w-3xl mx-auto mb-4 leading-relaxed font-light">
+        문서를 완벽하게 HTML로 변환하는
+        <span class="text-indigo-300 font-medium">스마트 컨버터</span>
+      </p>
+      <p class="scroll-reveal text-base sm:text-lg text-gray-400 max-w-2xl mx-auto mb-12 leading-relaxed">
+        HWPX, DOCX, XLSX, PPTX, PDF까지 &mdash; AI 기반 OCR과 자동 교정으로<br class="hidden sm:block" />
+        최고 품질의 HTML 변환 결과를 제공합니다
+      </p>
+
+      <!-- CTA Buttons -->
+      <div class="scroll-reveal flex flex-col sm:flex-row gap-4 justify-center items-center">
+        <a href="#download" class="glow-btn w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold text-lg rounded-2xl shadow-xl shadow-indigo-500/25 hover:shadow-indigo-500/50 transition-all flex items-center justify-center gap-3">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          무료 다운로드
+        </a>
+        <a href="#features" class="w-full sm:w-auto px-8 py-4 border border-white/10 text-gray-200 hover:text-white hover:border-white/20 hover:bg-white/5 font-semibold text-lg rounded-2xl transition-all flex items-center justify-center gap-3">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          자세히 보기
+        </a>
+      </div>
+
+      <!-- Supported Formats -->
+      <div class="scroll-reveal mt-16 sm:mt-20 flex flex-wrap justify-center gap-3 sm:gap-4">
+        <span class="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-gray-300 font-medium">.HWPX</span>
+        <span class="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-gray-300 font-medium">.DOCX</span>
+        <span class="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-gray-300 font-medium">.XLSX</span>
+        <span class="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-gray-300 font-medium">.PPTX</span>
+        <span class="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-gray-300 font-medium">.PDF</span>
+        <span class="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-gray-300 font-medium">Image</span>
+      </div>
+
+      <!-- Scroll indicator -->
+      <div class="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce hidden sm:block">
+        <svg class="w-6 h-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section id="features" class="section-dark relative py-24 sm:py-32">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <!-- Section Header -->
+      <div class="text-center mb-16 sm:mb-20">
+        <p class="scroll-reveal text-sm font-semibold tracking-widest text-indigo-400 uppercase mb-4">Features</p>
+        <h2 class="scroll-reveal text-3xl sm:text-4xl md:text-5xl font-bold mb-6">
+          <span class="gradient-text">강력한 기능</span>
+        </h2>
+        <p class="scroll-reveal text-gray-400 text-lg max-w-2xl mx-auto">
+          문서 변환에 필요한 모든 기능을 하나의 앱에서 제공합니다
+        </p>
+      </div>
+
+      <!-- Feature Cards Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
+
+        <!-- Feature 1: Document Conversion -->
+        <div class="scroll-reveal glass-card rounded-2xl p-8">
+          <div class="feature-icon w-14 h-14 rounded-2xl flex items-center justify-center mb-6">
+            <svg class="w-7 h-7 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+            </svg>
+          </div>
+          <h3 class="text-xl font-bold text-white mb-3">완벽한 문서 변환</h3>
+          <p class="text-gray-400 leading-relaxed">HWPX, DOCX, XLSX, PPTX, PDF 등 모든 문서를 HTML로 변환합니다. 원본 서식과 레이아웃을 최대한 보존합니다.</p>
+        </div>
+
+        <!-- Feature 2: Image PDF OCR -->
+        <div class="scroll-reveal glass-card rounded-2xl p-8">
+          <div class="feature-icon w-14 h-14 rounded-2xl flex items-center justify-center mb-6">
+            <svg class="w-7 h-7 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </div>
+          <h3 class="text-xl font-bold text-white mb-3">이미지 PDF OCR</h3>
+          <p class="text-gray-400 leading-relaxed">스캔본 문서도 Upstage AI로 완벽한 HTML 변환이 가능합니다. 최첨단 OCR 기술로 텍스트를 정확히 인식합니다.</p>
+        </div>
+
+        <!-- Feature 3: Gemini Auto-correction -->
+        <div class="scroll-reveal glass-card rounded-2xl p-8">
+          <div class="feature-icon w-14 h-14 rounded-2xl flex items-center justify-center mb-6">
+            <svg class="w-7 h-7 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+            </svg>
+          </div>
+          <h3 class="text-xl font-bold text-white mb-3">Gemini 3.0 Flash 자동 교정</h3>
+          <p class="text-gray-400 leading-relaxed">AI가 원본과 대조하여 오류를 자동 교정합니다. 누락된 텍스트, 잘못된 서식을 지능적으로 수정합니다.</p>
+        </div>
+
+        <!-- Feature 4: WYSIWYG Editor -->
+        <div class="scroll-reveal glass-card rounded-2xl p-8">
+          <div class="feature-icon w-14 h-14 rounded-2xl flex items-center justify-center mb-6">
+            <svg class="w-7 h-7 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+            </svg>
+          </div>
+          <h3 class="text-xl font-bold text-white mb-3">WYSIWYG 에디터</h3>
+          <p class="text-gray-400 leading-relaxed">변환된 HTML을 직접 편집할 수 있습니다. 표 편집 및 서식 지원으로 완벽한 결과물을 만들어 보세요.</p>
+        </div>
+
+        <!-- Feature 5: Markdown Conversion -->
+        <div class="scroll-reveal glass-card rounded-2xl p-8">
+          <div class="feature-icon w-14 h-14 rounded-2xl flex items-center justify-center mb-6">
+            <svg class="w-7 h-7 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" />
+            </svg>
+          </div>
+          <h3 class="text-xl font-bold text-white mb-3">마크다운 변환</h3>
+          <p class="text-gray-400 leading-relaxed">HTML을 마크다운으로 자동 변환하여 저장합니다. 다양한 플랫폼에서 활용할 수 있는 깔끔한 마크다운을 생성합니다.</p>
+        </div>
+
+        <!-- Feature 6: One-click Install -->
+        <div class="scroll-reveal glass-card rounded-2xl p-8">
+          <div class="feature-icon w-14 h-14 rounded-2xl flex items-center justify-center mb-6">
+            <svg class="w-7 h-7 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            </svg>
+          </div>
+          <h3 class="text-xl font-bold text-white mb-3">원클릭 설치</h3>
+          <p class="text-gray-400 leading-relaxed">설치파일 하나로 모든 설정이 자동 완료됩니다. 복잡한 설정 없이 바로 사용할 수 있습니다.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Divider -->
+  <div class="divider-gradient"></div>
+
+  <!-- How It Works Section -->
+  <section id="how-it-works" class="section-darker relative py-24 sm:py-32">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <!-- Section Header -->
+      <div class="text-center mb-16 sm:mb-20">
+        <p class="scroll-reveal text-sm font-semibold tracking-widest text-indigo-400 uppercase mb-4">How It Works</p>
+        <h2 class="scroll-reveal text-3xl sm:text-4xl md:text-5xl font-bold mb-6">
+          <span class="gradient-text">간단한 3단계</span>
+        </h2>
+        <p class="scroll-reveal text-gray-400 text-lg max-w-2xl mx-auto">
+          복잡한 과정 없이 3단계만으로 문서 변환이 완료됩니다
+        </p>
+      </div>
+
+      <!-- Steps -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12 relative">
+
+        <!-- Step 1 -->
+        <div class="scroll-reveal text-center relative step-connector">
+          <div class="step-number w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-8">
+            <span class="text-3xl font-bold text-white">1</span>
+          </div>
+          <div class="glass-card rounded-2xl p-8">
+            <div class="w-16 h-16 mx-auto mb-6 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
+              <svg class="w-8 h-8 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 00-1.883 2.542l.857 6a2.25 2.25 0 002.227 1.932H19.05a2.25 2.25 0 002.227-1.932l.857-6a2.25 2.25 0 00-1.883-2.542m-16.5 0V6A2.25 2.25 0 016 3.75h3.879a1.5 1.5 0 011.06.44l2.122 2.12a1.5 1.5 0 001.06.44H18A2.25 2.25 0 0120.25 9v.776" />
+              </svg>
+            </div>
+            <h3 class="text-xl font-bold text-white mb-3">파일 선택</h3>
+            <p class="text-gray-400">변환할 문서 파일을 선택하거나 드래그 앤 드롭으로 추가합니다</p>
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="scroll-reveal text-center relative step-connector">
+          <div class="step-number w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-8">
+            <span class="text-3xl font-bold text-white">2</span>
+          </div>
+          <div class="glass-card rounded-2xl p-8">
+            <div class="w-16 h-16 mx-auto mb-6 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
+              <svg class="w-8 h-8 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
+              </svg>
+            </div>
+            <h3 class="text-xl font-bold text-white mb-3">자동 변환</h3>
+            <p class="text-gray-400">AI가 문서를 분석하고 OCR과 자동 교정을 수행하여 HTML로 변환합니다</p>
+          </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="scroll-reveal text-center relative">
+          <div class="step-number w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-8">
+            <span class="text-3xl font-bold text-white">3</span>
+          </div>
+          <div class="glass-card rounded-2xl p-8">
+            <div class="w-16 h-16 mx-auto mb-6 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
+              <svg class="w-8 h-8 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h3 class="text-xl font-bold text-white mb-3">편집 / 저장</h3>
+            <p class="text-gray-400">WYSIWYG 에디터로 결과를 편집하고 HTML 또는 마크다운으로 저장합니다</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Divider -->
+  <div class="divider-gradient"></div>
+
+  <!-- Pricing Section -->
+  <section id="pricing" class="section-dark relative py-24 sm:py-32">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <!-- Section Header -->
+      <div class="text-center mb-16 sm:mb-20">
+        <p class="scroll-reveal text-sm font-semibold tracking-widest text-indigo-400 uppercase mb-4">Pricing</p>
+        <h2 class="scroll-reveal text-3xl sm:text-4xl md:text-5xl font-bold mb-6">
+          <span class="gradient-text">합리적인 요금</span>
+        </h2>
+        <p class="scroll-reveal text-gray-400 text-lg max-w-2xl mx-auto">
+          사용한 만큼만 지불하세요. 가입 시 무료 크레딧을 드립니다.
+        </p>
+      </div>
+
+      <!-- Free Credit Banner -->
+      <div class="scroll-reveal max-w-2xl mx-auto mb-12">
+        <div class="glass-card rounded-2xl p-6 text-center border-indigo-400/30 bg-indigo-500/5">
+          <div class="flex items-center justify-center gap-3 mb-2">
+            <svg class="w-6 h-6 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 11.25v8.25a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 109.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1114.625 7.5H12m0 0V21m-8.625-9.75h18c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125h-18c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+            </svg>
+            <span class="text-xl font-bold text-white">가입 시 1,000 크레딧 무료 지급</span>
+          </div>
+          <p class="text-gray-400 text-sm">회원가입만 하면 바로 사용할 수 있는 크레딧을 무료로 드립니다</p>
+        </div>
+      </div>
+
+      <!-- Pricing Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+
+        <!-- Plan 1: Image PDF -->
+        <div class="scroll-reveal pricing-card featured rounded-2xl p-8 relative overflow-hidden">
+          <!-- Popular badge -->
+          <div class="absolute top-6 right-6">
+            <span class="px-3 py-1 text-xs font-semibold bg-indigo-500/20 text-indigo-300 rounded-full border border-indigo-500/30">OCR + AI 교정</span>
+          </div>
+          <div class="mb-6">
+            <h3 class="text-lg font-semibold text-gray-300 mb-1">이미지 PDF / 이미지 파일</h3>
+            <p class="text-sm text-gray-500">스캔본 문서, 이미지 기반 PDF</p>
+          </div>
+          <div class="mb-8">
+            <div class="flex items-end gap-2">
+              <span class="text-5xl font-extrabold text-white">50</span>
+              <span class="text-xl text-gray-400 mb-1">원</span>
+              <span class="text-gray-500 mb-1">/ 장</span>
+            </div>
+            <p class="text-sm text-gray-500 mt-2">부가세 별도</p>
+          </div>
+          <ul class="space-y-4 mb-8">
+            <li class="flex items-start gap-3">
+              <svg class="w-5 h-5 text-indigo-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+              </svg>
+              <span class="text-gray-300">Upstage AI OCR 텍스트 인식</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <svg class="w-5 h-5 text-indigo-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+              </svg>
+              <span class="text-gray-300">Gemini 3.0 Flash AI 자동 교정</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <svg class="w-5 h-5 text-indigo-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+              </svg>
+              <span class="text-gray-300">HTML + 마크다운 출력</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <svg class="w-5 h-5 text-indigo-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+              </svg>
+              <span class="text-gray-300">WYSIWYG 에디터 편집</span>
+            </li>
+          </ul>
+          <a href="#download" class="block w-full py-3.5 text-center font-semibold bg-gradient-to-r from-indigo-500 to-violet-600 rounded-xl hover:from-indigo-400 hover:to-violet-500 transition-all shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40">
+            시작하기
+          </a>
+        </div>
+
+        <!-- Plan 2: General Documents -->
+        <div class="scroll-reveal pricing-card rounded-2xl p-8 relative overflow-hidden">
+          <!-- Badge -->
+          <div class="absolute top-6 right-6">
+            <span class="px-3 py-1 text-xs font-semibold bg-emerald-500/20 text-emerald-300 rounded-full border border-emerald-500/30">AI 교정 포함</span>
+          </div>
+          <div class="mb-6">
+            <h3 class="text-lg font-semibold text-gray-300 mb-1">일반 문서</h3>
+            <p class="text-sm text-gray-500">DOCX, HWPX, XLSX, PPTX, 디지털 PDF</p>
+          </div>
+          <div class="mb-8">
+            <div class="flex items-end gap-2">
+              <span class="text-5xl font-extrabold text-white">20</span>
+              <span class="text-xl text-gray-400 mb-1">원</span>
+              <span class="text-gray-500 mb-1">/ 장</span>
+            </div>
+            <p class="text-sm text-gray-500 mt-2">부가세 별도</p>
+          </div>
+          <ul class="space-y-4 mb-8">
+            <li class="flex items-start gap-3">
+              <svg class="w-5 h-5 text-emerald-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+              </svg>
+              <span class="text-gray-300">네이티브 문서 파싱</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <svg class="w-5 h-5 text-emerald-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+              </svg>
+              <span class="text-gray-300">Gemini 3.0 Flash AI 자동 교정</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <svg class="w-5 h-5 text-emerald-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+              </svg>
+              <span class="text-gray-300">HTML + 마크다운 출력</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <svg class="w-5 h-5 text-emerald-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+              </svg>
+              <span class="text-gray-300">WYSIWYG 에디터 편집</span>
+            </li>
+          </ul>
+          <a href="#download" class="block w-full py-3.5 text-center font-semibold border border-white/10 rounded-xl hover:bg-white/5 hover:border-white/20 transition-all">
+            시작하기
+          </a>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Divider -->
+  <div class="divider-gradient"></div>
+
+  <!-- Download Section -->
+  <section id="download" class="section-darker relative py-24 sm:py-32 overflow-hidden">
+    <!-- Background glow -->
+    <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+      <div class="w-[600px] h-[600px] rounded-full bg-indigo-500/5 blur-3xl"></div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+      <!-- Section Header -->
+      <div class="text-center mb-16">
+        <p class="scroll-reveal text-sm font-semibold tracking-widest text-indigo-400 uppercase mb-4">Download</p>
+        <h2 class="scroll-reveal text-3xl sm:text-4xl md:text-5xl font-bold mb-6">
+          <span class="gradient-text">지금 바로 시작하세요</span>
+        </h2>
+        <p class="scroll-reveal text-gray-400 text-lg max-w-2xl mx-auto mb-2">
+          Windows와 macOS에서 사용할 수 있습니다
+        </p>
+        <p class="scroll-reveal text-indigo-300 text-base font-medium">
+          설치 후 바로 1,000 크레딧을 무료로 사용하세요
+        </p>
+      </div>
+
+      <!-- Download Buttons -->
+      <div class="scroll-reveal flex flex-col sm:flex-row gap-6 justify-center items-center max-w-xl mx-auto">
+
+        <!-- Windows -->
+        <a href="https://github.com/Kimjaechol/converter/releases/latest" target="_blank" rel="noopener" class="glow-btn group w-full sm:w-auto flex items-center gap-4 px-8 py-5 bg-gradient-to-r from-indigo-600 to-violet-600 rounded-2xl shadow-xl shadow-indigo-500/20 hover:shadow-indigo-500/40 transition-all">
+          <svg class="w-10 h-10 text-white/90" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/>
+          </svg>
+          <div class="text-left">
+            <p class="text-xs text-indigo-200 font-medium">Download for</p>
+            <p class="text-xl font-bold text-white">Windows</p>
+            <p class="text-xs text-indigo-300">.exe installer</p>
+          </div>
+          <svg class="w-5 h-5 text-white/50 group-hover:text-white/80 ml-auto transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+        </a>
+
+        <!-- macOS -->
+        <a href="https://github.com/Kimjaechol/converter/releases/latest" target="_blank" rel="noopener" class="glow-btn group w-full sm:w-auto flex items-center gap-4 px-8 py-5 border border-white/10 bg-white/5 rounded-2xl hover:bg-white/10 hover:border-white/20 transition-all">
+          <svg class="w-10 h-10 text-white/90" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+          </svg>
+          <div class="text-left">
+            <p class="text-xs text-gray-400 font-medium">Download for</p>
+            <p class="text-xl font-bold text-white">macOS</p>
+            <p class="text-xs text-gray-400">.dmg installer</p>
+          </div>
+          <svg class="w-5 h-5 text-white/30 group-hover:text-white/60 ml-auto transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+        </a>
+
+      </div>
+
+      <!-- System Requirements -->
+      <div class="scroll-reveal mt-12 text-center">
+        <p class="text-sm text-gray-500">
+          Windows 10 이상 / macOS 12 이상 지원 &middot; 인터넷 연결 필요
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Divider -->
+  <div class="divider-gradient"></div>
+
+  <!-- Footer -->
+  <footer class="bg-[#080620] py-16">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex flex-col items-center text-center">
+        <!-- Logo -->
+        <a href="#" class="flex items-center gap-3 mb-6 group">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+            <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <span class="text-xl font-bold">
+            <span class="text-white">LawPro</span>
+            <span class="gradient-text ml-1">Fast Converter</span>
+          </span>
+        </a>
+
+        <p class="text-gray-500 text-sm max-w-md mb-8">
+          문서를 완벽하게 HTML로 변환하는 스마트 컨버터.<br />
+          AI 기반 OCR과 자동 교정으로 최고 품질의 결과를 제공합니다.
+        </p>
+
+        <!-- Footer Nav -->
+        <div class="flex flex-wrap justify-center gap-6 mb-8">
+          <a href="#features" class="text-sm text-gray-400 hover:text-white transition-colors">기능</a>
+          <a href="#pricing" class="text-sm text-gray-400 hover:text-white transition-colors">요금</a>
+          <a href="#how-it-works" class="text-sm text-gray-400 hover:text-white transition-colors">사용 방법</a>
+          <a href="#download" class="text-sm text-gray-400 hover:text-white transition-colors">다운로드</a>
+        </div>
+
+        <!-- Divider -->
+        <div class="w-full divider-gradient mb-8"></div>
+
+        <!-- Copyright -->
+        <p class="text-gray-600 text-sm">
+          &copy; 2026 LawPro Fast Converter. All rights reserved.
+        </p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- JavaScript -->
+  <script>
+    // ========================================
+    // Scroll Reveal Animation
+    // ========================================
+    function initScrollReveal() {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('revealed');
+              observer.unobserve(entry.target);
+            }
+          });
+        },
+        {
+          threshold: 0.1,
+          rootMargin: '0px 0px -50px 0px',
+        }
+      );
+
+      document.querySelectorAll('.scroll-reveal').forEach((el) => {
+        observer.observe(el);
+      });
+    }
+
+    // ========================================
+    // Navbar Scroll Effect
+    // ========================================
+    function initNavbar() {
+      const navbar = document.getElementById('navbar');
+      let lastScroll = 0;
+
+      window.addEventListener('scroll', () => {
+        const currentScroll = window.pageYOffset;
+        if (currentScroll > 50) {
+          navbar.classList.add('scrolled');
+        } else {
+          navbar.classList.remove('scrolled');
+        }
+        lastScroll = currentScroll;
+      }, { passive: true });
+    }
+
+    // ========================================
+    // Mobile Menu
+    // ========================================
+    function initMobileMenu() {
+      const btn = document.getElementById('mobileMenuBtn');
+      const menu = document.getElementById('mobileMenu');
+      const closeBtn = document.getElementById('mobileMenuClose');
+      const links = menu.querySelectorAll('.mobile-nav-link');
+
+      function openMenu() {
+        menu.classList.add('open');
+        document.body.style.overflow = 'hidden';
+      }
+
+      function closeMenu() {
+        menu.classList.remove('open');
+        document.body.style.overflow = '';
+      }
+
+      btn.addEventListener('click', openMenu);
+      closeBtn.addEventListener('click', closeMenu);
+      links.forEach((link) => link.addEventListener('click', closeMenu));
+
+      // Close on backdrop click
+      menu.addEventListener('click', (e) => {
+        if (e.target === menu) closeMenu();
+      });
+
+      // Close on escape
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeMenu();
+      });
+    }
+
+    // ========================================
+    // Smooth Scroll for anchor links
+    // ========================================
+    function initSmoothScroll() {
+      document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
+        anchor.addEventListener('click', function (e) {
+          const targetId = this.getAttribute('href');
+          if (targetId === '#') return;
+
+          const target = document.querySelector(targetId);
+          if (target) {
+            e.preventDefault();
+            const navbarHeight = document.getElementById('navbar').offsetHeight;
+            const targetPosition = target.getBoundingClientRect().top + window.pageYOffset - navbarHeight;
+            window.scrollTo({
+              top: targetPosition,
+              behavior: 'smooth',
+            });
+          }
+        });
+      });
+    }
+
+    // ========================================
+    // Floating Particles
+    // ========================================
+    function initParticles() {
+      const container = document.getElementById('particles');
+      const particleCount = 20;
+
+      for (let i = 0; i < particleCount; i++) {
+        const particle = document.createElement('div');
+        particle.classList.add('particle');
+
+        const size = Math.random() * 4 + 2;
+        const left = Math.random() * 100;
+        const duration = Math.random() * 20 + 15;
+        const delay = Math.random() * 20;
+        const hue = Math.random() > 0.5 ? '239' : '263'; // indigo or violet
+
+        particle.style.cssText = `
+          width: ${size}px;
+          height: ${size}px;
+          left: ${left}%;
+          background: hsl(${hue}, 84%, 67%);
+          animation-duration: ${duration}s;
+          animation-delay: ${delay}s;
+        `;
+
+        container.appendChild(particle);
+      }
+    }
+
+    // ========================================
+    // Initialize Everything
+    // ========================================
+    document.addEventListener('DOMContentLoaded', () => {
+      initScrollReveal();
+      initNavbar();
+      initMobileMenu();
+      initSmoothScroll();
+      initParticles();
+    });
+  </script>
+
+</body>
+</html>
