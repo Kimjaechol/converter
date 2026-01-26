@@ -850,14 +850,25 @@
 
                     <!-- AI 검수 API 키 (사용자 입력용) -->
                     <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 mb-6">
-                        <h3 class="font-bold text-lg mb-2">AI 검수 API 키</h3>
-                        <p class="text-sm text-gray-400 mb-4">
-                            Claude 계정이 없거나, 사용량 제한에 걸린 경우 Gemini 또는 OpenAI API를 사용하여 검수할 수 있습니다.
-                        </p>
+                        <h3 class="font-bold text-lg mb-2">API 키 설정</h3>
 
                         <div class="space-y-4">
+                            <!-- Upstage API Key (OCR 필수) -->
+                            <div class="bg-gray-900/50 rounded-lg p-4 border border-indigo-500/30">
+                                <label class="block text-sm font-semibold text-indigo-300 mb-2">Upstage API Key (OCR 변환 필수)</label>
+                                <div class="flex space-x-2">
+                                    <input type="password" id="settingsUpstageKey" placeholder="up_..."
+                                        class="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm focus:border-indigo-500 focus:outline-none">
+                                    <button id="settingsSaveUpstage" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm transition-colors">
+                                        저장
+                                    </button>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">이미지 PDF, 이미지 파일 OCR 변환에 필요합니다. <a href="https://console.upstage.ai/" target="_blank" class="text-indigo-400 hover:underline">Upstage Console</a>에서 발급하세요.</p>
+                            </div>
+
+                            <!-- Gemini API Key -->
                             <div>
-                                <label class="block text-sm text-gray-400 mb-2">Gemini API Key (선택)</label>
+                                <label class="block text-sm text-gray-400 mb-2">Gemini API Key (자동 교정 - 선택)</label>
                                 <div class="flex space-x-2">
                                     <input type="password" id="settingsGeminiKey" placeholder="AI..."
                                         class="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm focus:border-blue-500 focus:outline-none">
