@@ -7,6 +7,7 @@ Anthropic Claude API를 사용한 문서 검수 에이전트
 Supported Models:
 - claude-sonnet-4-0 (최신, 권장)
 - claude-3-5-sonnet-20240620 (안정적)
+- claude-opus-4-5-20251101 (최상위)
 """
 
 import os
@@ -95,7 +96,8 @@ class ClaudeReviewAgent:
     # 지원 모델 목록
     MODELS = {
         "claude-sonnet-4-0": "claude-sonnet-4-0",
-        "claude-3-5-sonnet-20240620": "claude-3-5-sonnet-20240620"
+        "claude-3-5-sonnet-20240620": "claude-3-5-sonnet-20240620",
+        "claude-opus-4-5-20251101": "claude-opus-4-5-20251101"
     }
 
     # 토큰 제한

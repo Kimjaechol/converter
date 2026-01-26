@@ -5,9 +5,8 @@ LawPro Fast Converter - OpenAI GPT Agent
 OpenAI GPT 모델을 사용한 문서 검수 에이전트
 
 Supported Models:
-- gpt-4o (최신, 권장)
-- gpt-4o-mini (경제적)
-- gpt-4-turbo (고품질)
+- gpt-4o (권장)
+- gpt-5.2 (최신)
 """
 
 import os
@@ -89,8 +88,7 @@ class OpenAIReviewAgent:
     # 지원 모델 목록
     MODELS = {
         "gpt-4o": "gpt-4o",
-        "gpt-4o-mini": "gpt-4o-mini",
-        "gpt-4-turbo": "gpt-4-turbo",
+        "gpt-5.2": "gpt-5.2",
         "gpt-3.5-turbo": "gpt-3.5-turbo"
     }
 
