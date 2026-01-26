@@ -20,9 +20,6 @@ pytesseract>=0.3.10
 requests>=2.31.0
 aiohttp>=3.9.0
 
-# MCP Server
-mcp[cli]>=1.0.0
-
 # Gemini Integration
 google-generativeai>=0.3.0
 
@@ -31,6 +28,9 @@ google-genai>=0.3.0
 
 # OpenAI Integration
 openai>=1.0.0
+
+# Claude (Anthropic) Integration
+anthropic>=0.18.0
 
 # HTML Cleaning & Markdown
 beautifulsoup4>=4.12.0

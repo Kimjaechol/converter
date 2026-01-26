@@ -29,12 +29,13 @@ const store = new Store({
         upstageKey: '',
         geminiKey: '',
         openaiKey: '',
+        claudeKey: '',
         userEmail: '',
         lastFolder: '',
-        claudeConnected: false,
-        geminiModel: 'flash-2.0',
+        geminiModel: 'gemini-3-flash-preview',
         openaiModel: 'gpt-4o',
-        selectedAI: 'claude',  // claude, gemini, openai
+        claudeModel: 'claude-sonnet-4-0',
+        selectedAI: 'gemini',  // gemini, openai, claude
         generateCleanHtml: true,
         generateMarkdown: true,
         enableGeminiCorrection: true,  // Gemini 3.0 Flash 자동 교정 (이미지 PDF 변환 시)
@@ -412,7 +413,7 @@ ipcMain.handle('set-gemini-model', async (event, model) => {
 });
 
 ipcMain.handle('get-gemini-model', async () => {
-    return store.get('geminiModel', 'flash-2.0');
+    return store.get('geminiModel', 'gemini-3-flash-preview');
 });
 
 // Gemini 3.0 Flash 자동 교정 설정 (변환 시 적용)
@@ -547,6 +548,77 @@ ipcMain.handle('run-openai-review', async (event, { folderPath }) => {
 });
 
 // ============================================================
+// IPC 핸들러: Claude 설정
+// ============================================================
+ipcMain.handle('save-claude-key', async (event, key) => {
+    store.set('claudeKey', key);
+    return { success: true };
+});
+
+ipcMain.handle('get-claude-key', async () => {
+    return store.get('claudeKey', '');
+});
+
+ipcMain.handle('set-claude-model', async (event, model) => {
+    store.set('claudeModel', model);
+    return { success: true };
+});
+
+ipcMain.handle('get-claude-model', async () => {
+    return store.get('claudeModel', 'claude-sonnet-4-0');
+});
+
+// Claude 검수 실행
+ipcMain.handle('run-claude-review', async (event, { folderPath }) => {
+    return new Promise((resolve, reject) => {
+        const pythonCmd = getPythonCommand();
+
+        if (!pythonCmd) {
+            reject(new Error('Python 3이 설치되어 있지 않습니다.'));
+            return;
+        }
+
+        const apiKey = store.get('claudeKey');
+        if (!apiKey) {
+            reject(new Error('Claude API 키가 설정되지 않았습니다.'));
+            return;
+        }
+
+        const model = store.get('claudeModel', 'claude-sonnet-4-0');
+        const scriptPath = path.join(enginePath, 'claude_agent.py');
+
+        const claudeProcess = spawn(pythonCmd, [scriptPath, folderPath, apiKey, model], {
+            cwd: enginePath,
+            env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+        });
+
+        claudeProcess.stdout.on('data', (data) => {
+            const lines = data.toString().split('\n').filter(Boolean);
+            for (const line of lines) {
+                try {
+                    const json = JSON.parse(line);
+                    mainWindow?.webContents.send('claude-log', json);
+                } catch (e) {
+                    mainWindow?.webContents.send('claude-log', { type: 'log', msg: line });
+                }
+            }
+        });
+
+        claudeProcess.stderr.on('data', (data) => {
+            mainWindow?.webContents.send('claude-log', { type: 'error', msg: data.toString() });
+        });
+
+        claudeProcess.on('close', (code) => {
+            resolve({ success: code === 0, code });
+        });
+
+        claudeProcess.on('error', (err) => {
+            reject(err);
+        });
+    });
+});
+
+// ============================================================
 // IPC 핸들러: AI 선택 및 출력 옵션
 // ============================================================
 ipcMain.handle('set-selected-ai', async (event, ai) => {
@@ -555,7 +627,7 @@ ipcMain.handle('set-selected-ai', async (event, ai) => {
 });
 
 ipcMain.handle('get-selected-ai', async () => {
-    return store.get('selectedAI', 'claude');
+    return store.get('selectedAI', 'gemini');
 });
 
 ipcMain.handle('set-output-options', async (event, { generateClean, generateMarkdown }) => {
@@ -572,19 +644,27 @@ ipcMain.handle('get-output-options', async () => {
 });
 
 // ============================================================
-// IPC 핸들러: Upstage API 키 (관리자 전용 - 환경변수 우선)
+// IPC 핸들러: Upstage API 키 (내장 키 우선)
 // ============================================================
 ipcMain.handle('save-upstage-key', async (event, key) => {
-    // 환경변수가 설정되어 있으면 저장 불가
-    if (process.env.UPSTAGE_API_KEY) {
-        return { success: false, error: 'Environment variable is set' };
-    }
     store.set('upstageKey', key);
     return { success: true };
 });
 
 ipcMain.handle('get-upstage-key', async () => {
-    // 환경변수 우선, 없으면 저장된 값 사용
+    // 우선순위: 1. admin_config.json (빌드 주입) → 2. 환경변수 → 3. 저장된 값
+    try {
+        const adminConfigPath = path.join(enginePath, 'admin_config.json');
+        if (fs.existsSync(adminConfigPath)) {
+            const configContent = fs.readFileSync(adminConfigPath, 'utf-8');
+            const config = JSON.parse(configContent);
+            if (config.upstage_api_key) {
+                return config.upstage_api_key;
+            }
+        }
+    } catch (e) {
+        // 무시
+    }
     return process.env.UPSTAGE_API_KEY || store.get('upstageKey', '');
 });
 

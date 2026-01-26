@@ -27,13 +27,28 @@ contextBridge.exposeInMainWorld('lawpro', {
     },
 
     // ========================================
-    // Claude MCP 연결
+    // Claude 설정 및 실행
     // ========================================
-    setupClaudeMcp: () =>
-        ipcRenderer.invoke('setup-claude-mcp'),
+    saveClaudeKey: (key) =>
+        ipcRenderer.invoke('save-claude-key', key),
 
-    checkClaudeStatus: () =>
-        ipcRenderer.invoke('check-claude-status'),
+    getClaudeKey: () =>
+        ipcRenderer.invoke('get-claude-key'),
+
+    setClaudeModel: (model) =>
+        ipcRenderer.invoke('set-claude-model', model),
+
+    getClaudeModel: () =>
+        ipcRenderer.invoke('get-claude-model'),
+
+    runClaudeReview: (folderPath) =>
+        ipcRenderer.invoke('run-claude-review', { folderPath }),
+
+    onClaudeLog: (callback) => {
+        const handler = (event, data) => callback(data);
+        ipcRenderer.on('claude-log', handler);
+        return () => ipcRenderer.removeListener('claude-log', handler);
+    },
 
     // ========================================
     // Gemini 설정 및 실행

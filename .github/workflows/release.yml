@@ -23,6 +23,10 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Inject API keys
+        run: |
+          echo '{"upstage_api_key":"${{ secrets.UPSTAGE_API_KEY }}","gemini_api_key":"${{ secrets.GEMINI_API_KEY }}"}' > engine/admin_config.json
+
       - name: Build Windows installer
         run: npm run build:win
         env:
@@ -50,6 +54,10 @@ jobs:
 
       - name: Install dependencies
         run: npm install
+
+      - name: Inject API keys
+        run: |
+          echo '{"upstage_api_key":"${{ secrets.UPSTAGE_API_KEY }}","gemini_api_key":"${{ secrets.GEMINI_API_KEY }}"}' > engine/admin_config.json
 
       - name: Build macOS installer
         run: npm run build:mac
@@ -98,9 +106,11 @@ jobs:
 
             ### 주요 기능
             - HWPX, DOCX, XLSX, PPTX, PDF → HTML 변환
-            - 이미지 PDF/이미지 OCR (Upstage AI)
+            - 이미지 PDF/이미지 OCR (Upstage AI 내장)
+            - AI 검수: Gemini 3.0 Flash (기본) / OpenAI GPT / Claude 선택
             - Gemini 3.0 Flash 자동 교정
             - WYSIWYG 에디터 + 마크다운 변환
+            - 본인 API 키 사용 시 일반 문서 검수 무료
             - 회원가입 시 1,000 크레딧 무료 지급
           files: dist/*
           draft: false

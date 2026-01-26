@@ -77,9 +77,6 @@ const elements = {
     geminiCorrectionBadge: document.getElementById('geminiCorrectionBadge'),
 
     // AI 검수 페이지
-    connectClaude: document.getElementById('connectClaude'),
-    claudeConnectionBadge: document.getElementById('claudeConnectionBadge'),
-    claudeMessage: document.getElementById('claudeMessage'),
     geminiKeyInput: document.getElementById('geminiKeyInput'),
     geminiModelSelect: document.getElementById('geminiModelSelect'),
     saveGeminiKey: document.getElementById('saveGeminiKey'),
@@ -88,6 +85,10 @@ const elements = {
     openaiModelSelect: document.getElementById('openaiModelSelect'),
     saveOpenaiKey: document.getElementById('saveOpenaiKey'),
     openaiConnectionBadge: document.getElementById('openaiConnectionBadge'),
+    claudeKeyInput: document.getElementById('claudeKeyInput'),
+    claudeModelSelect: document.getElementById('claudeModelSelect'),
+    saveClaudeKey: document.getElementById('saveClaudeKey'),
+    claudeConnectionBadge: document.getElementById('claudeConnectionBadge'),
     reviewFolderPath: document.getElementById('reviewFolderPath'),
     selectReviewFolder: document.getElementById('selectReviewFolder'),
     startReview: document.getElementById('startReview'),
@@ -98,16 +99,15 @@ const elements = {
     pythonInfo: document.getElementById('pythonInfo'),
     installDeps: document.getElementById('installDeps'),
     installOutput: document.getElementById('installOutput'),
-    settingsUpstageKey: document.getElementById('settingsUpstageKey'),
-    settingsSaveUpstage: document.getElementById('settingsSaveUpstage'),
     settingsGeminiKey: document.getElementById('settingsGeminiKey'),
     settingsSaveGemini: document.getElementById('settingsSaveGemini'),
-    settingsConnectClaude: document.getElementById('settingsConnectClaude'),
-    settingsClaudeStatus: document.getElementById('settingsClaudeStatus'),
+    settingsOpenaiKey: document.getElementById('settingsOpenaiKey'),
+    settingsSaveOpenai: document.getElementById('settingsSaveOpenai'),
+    settingsClaudeKey: document.getElementById('settingsClaudeKey'),
+    settingsSaveClaude: document.getElementById('settingsSaveClaude'),
 
     // 상태 표시
     pythonStatus: document.getElementById('pythonStatus'),
-    claudeStatus: document.getElementById('claudeStatus'),
     appVersion: document.getElementById('appVersion'),
 
     // 크레딧 관련
@@ -189,9 +189,6 @@ async function init() {
     // Python 상태 확인
     await checkPythonStatus();
 
-    // Claude 연결 상태 확인
-    await checkClaudeStatus();
-
     // 크레딧 잔액 로드
     await loadCreditBalance();
 
@@ -203,11 +200,10 @@ async function init() {
 }
 
 async function loadSavedSettings() {
-    // Upstage 키
+    // Upstage 키 (내장/환경변수에서 자동 로드)
     const upstageKey = await window.lawpro.getUpstageKey();
     if (upstageKey) {
         elements.upstageKeyInput.value = upstageKey;
-        if (elements.settingsUpstageKey) elements.settingsUpstageKey.value = upstageKey;
     }
 
     // Gemini 키
@@ -221,19 +217,35 @@ async function loadSavedSettings() {
 
     // Gemini 모델
     const geminiModel = await window.lawpro.getGeminiModel();
-    elements.geminiModelSelect.value = geminiModel;
+    if (elements.geminiModelSelect) elements.geminiModelSelect.value = geminiModel;
 
     // OpenAI 키
     const openaiKey = await window.lawpro.getOpenaiKey();
     if (openaiKey) {
         elements.openaiKeyInput.value = openaiKey;
+        if (elements.settingsOpenaiKey) elements.settingsOpenaiKey.value = openaiKey;
         elements.openaiConnectionBadge.textContent = '설정됨';
         elements.openaiConnectionBadge.className = 'px-2 py-1 rounded-full text-xs bg-green-600/20 text-green-400';
     }
 
     // OpenAI 모델
     const openaiModel = await window.lawpro.getOpenaiModel();
-    elements.openaiModelSelect.value = openaiModel;
+    if (elements.openaiModelSelect) elements.openaiModelSelect.value = openaiModel;
+
+    // Claude 키
+    const claudeKey = await window.lawpro.getClaudeKey();
+    if (claudeKey) {
+        if (elements.claudeKeyInput) elements.claudeKeyInput.value = claudeKey;
+        if (elements.settingsClaudeKey) elements.settingsClaudeKey.value = claudeKey;
+        if (elements.claudeConnectionBadge) {
+            elements.claudeConnectionBadge.textContent = '설정됨';
+            elements.claudeConnectionBadge.className = 'px-2 py-1 rounded-full text-xs bg-green-600/20 text-green-400';
+        }
+    }
+
+    // Claude 모델
+    const claudeModel = await window.lawpro.getClaudeModel();
+    if (elements.claudeModelSelect) elements.claudeModelSelect.value = claudeModel;
 
     // 출력 옵션
     const outputOptions = await window.lawpro.getOutputOptions();
@@ -279,17 +291,7 @@ async function checkPythonStatus() {
     }
 }
 
-async function checkClaudeStatus() {
-    const result = await window.lawpro.checkClaudeStatus();
-
-    if (result.connected) {
-        elements.claudeStatus.textContent = '연결됨';
-        elements.claudeStatus.className = 'text-green-400';
-        elements.claudeConnectionBadge.textContent = '연결됨';
-        elements.claudeConnectionBadge.className = 'px-2 py-1 rounded-full text-xs bg-green-600/20 text-green-400';
-        elements.connectClaude.textContent = '재설정';
-    }
-}
+// (Claude MCP 제거됨 - 직접 API 키 입력 방식으로 변경)
 
 // ============================================================
 // 이벤트 리스너
@@ -328,12 +330,6 @@ function setupEventListeners() {
     }
 
     // API 키 저장
-    if (elements.saveUpstageKey) {
-        elements.saveUpstageKey.addEventListener('click', saveUpstageKey);
-    }
-    if (elements.settingsSaveUpstage) {
-        elements.settingsSaveUpstage.addEventListener('click', saveUpstageKeyFromSettings);
-    }
     if (elements.saveGeminiKey) {
         elements.saveGeminiKey.addEventListener('click', saveGeminiKey);
     }
@@ -343,13 +339,14 @@ function setupEventListeners() {
     if (elements.saveOpenaiKey) {
         elements.saveOpenaiKey.addEventListener('click', saveOpenaiKey);
     }
-
-    // Claude 연결
-    if (elements.connectClaude) {
-        elements.connectClaude.addEventListener('click', connectClaude);
+    if (elements.settingsSaveOpenai) {
+        elements.settingsSaveOpenai.addEventListener('click', saveOpenaiKeyFromSettings);
     }
-    if (elements.settingsConnectClaude) {
-        elements.settingsConnectClaude.addEventListener('click', connectClaude);
+    if (elements.saveClaudeKey) {
+        elements.saveClaudeKey.addEventListener('click', saveClaudeKey);
+    }
+    if (elements.settingsSaveClaude) {
+        elements.settingsSaveClaude.addEventListener('click', saveClaudeKeyFromSettings);
     }
 
     // 모델 변경
@@ -361,6 +358,11 @@ function setupEventListeners() {
     if (elements.openaiModelSelect) {
         elements.openaiModelSelect.addEventListener('change', async () => {
             await window.lawpro.setOpenaiModel(elements.openaiModelSelect.value);
+        });
+    }
+    if (elements.claudeModelSelect) {
+        elements.claudeModelSelect.addEventListener('change', async () => {
+            await window.lawpro.setClaudeModel(elements.claudeModelSelect.value);
         });
     }
 
@@ -437,6 +439,11 @@ function setupIPCListeners() {
 
     // OpenAI 로그
     window.lawpro.onOpenaiLog((data) => {
+        handleReviewLog(data);
+    });
+
+    // Claude 로그
+    window.lawpro.onClaudeLog((data) => {
         handleReviewLog(data);
     });
 
@@ -629,35 +636,64 @@ async function saveOutputOptions() {
 // ============================================================
 // AI 연결 기능
 // ============================================================
-async function connectClaude() {
-    elements.connectClaude.disabled = true;
-    elements.connectClaude.textContent = '연결 중...';
-
-    try {
-        const result = await window.lawpro.setupClaudeMcp();
-
-        if (result.success) {
-            elements.claudeStatus.textContent = '연결됨';
-            elements.claudeStatus.className = 'text-green-400';
-            elements.claudeConnectionBadge.textContent = '연결됨';
-            elements.claudeConnectionBadge.className = 'px-2 py-1 rounded-full text-xs bg-green-600/20 text-green-400';
-
-            elements.claudeMessage.textContent = result.message;
-            elements.claudeMessage.className = 'mt-2 text-xs text-center text-green-400';
-            elements.claudeMessage.classList.remove('hidden');
-        } else {
-            elements.claudeMessage.textContent = result.error;
-            elements.claudeMessage.className = 'mt-2 text-xs text-center text-red-400';
-            elements.claudeMessage.classList.remove('hidden');
-        }
-    } catch (error) {
-        elements.claudeMessage.textContent = error.message;
-        elements.claudeMessage.className = 'mt-2 text-xs text-center text-red-400';
-        elements.claudeMessage.classList.remove('hidden');
+async function saveClaudeKey() {
+    const key = elements.claudeKeyInput.value.trim();
+    if (!key) {
+        alert('Claude API 키를 입력해주세요');
+        return;
     }
 
-    elements.connectClaude.disabled = false;
-    elements.connectClaude.textContent = '원클릭 연결';
+    const result = await window.lawpro.saveClaudeKey(key);
+    if (result.success) {
+        if (elements.settingsClaudeKey) elements.settingsClaudeKey.value = key;
+        if (elements.claudeConnectionBadge) {
+            elements.claudeConnectionBadge.textContent = '설정됨';
+            elements.claudeConnectionBadge.className = 'px-2 py-1 rounded-full text-xs bg-green-600/20 text-green-400';
+        }
+        alert('Claude API 키가 저장되었습니다.');
+    } else {
+        alert('저장 실패: ' + (result.error || '알 수 없는 오류'));
+    }
+}
+
+async function saveClaudeKeyFromSettings() {
+    const key = elements.settingsClaudeKey.value.trim();
+    if (!key) {
+        alert('Claude API 키를 입력해주세요');
+        return;
+    }
+
+    const result = await window.lawpro.saveClaudeKey(key);
+    if (result.success) {
+        if (elements.claudeKeyInput) elements.claudeKeyInput.value = key;
+        if (elements.claudeConnectionBadge) {
+            elements.claudeConnectionBadge.textContent = '설정됨';
+            elements.claudeConnectionBadge.className = 'px-2 py-1 rounded-full text-xs bg-green-600/20 text-green-400';
+        }
+        alert('Claude API 키가 저장되었습니다.');
+    } else {
+        alert('저장 실패: ' + (result.error || '알 수 없는 오류'));
+    }
+}
+
+async function saveOpenaiKeyFromSettings() {
+    const key = elements.settingsOpenaiKey.value.trim();
+    if (!key) {
+        alert('OpenAI API 키를 입력해주세요');
+        return;
+    }
+
+    const result = await window.lawpro.saveOpenaiKey(key);
+    if (result.success) {
+        if (elements.openaiKeyInput) elements.openaiKeyInput.value = key;
+        if (elements.openaiConnectionBadge) {
+            elements.openaiConnectionBadge.textContent = '설정됨';
+            elements.openaiConnectionBadge.className = 'px-2 py-1 rounded-full text-xs bg-green-600/20 text-green-400';
+        }
+        alert('OpenAI API 키가 저장되었습니다.');
+    } else {
+        alert('저장 실패: ' + (result.error || '알 수 없는 오류'));
+    }
 }
 
 async function saveGeminiKey() {
@@ -736,6 +772,25 @@ async function startReview() {
 
     const selectedAI = elements.reviewAISelect.value;
 
+    // API 키 확인 및 없을 때 팝업
+    let hasKey = false;
+    if (selectedAI === 'gemini') {
+        hasKey = !!(elements.geminiKeyInput && elements.geminiKeyInput.value.trim());
+    } else if (selectedAI === 'openai') {
+        hasKey = !!(elements.openaiKeyInput && elements.openaiKeyInput.value.trim());
+    } else if (selectedAI === 'claude') {
+        hasKey = !!(elements.claudeKeyInput && elements.claudeKeyInput.value.trim());
+    }
+
+    if (!hasKey) {
+        const proceed = confirm(
+            `api key가 없으신가요? AI(LLM)비용은 저희 회사가 제공해드리겠습니다.\n\n` +
+            `검수에는 장당 20원의 제미나이 3.0flash api 비용 등 추가 비용이 크레딧으로 차감됩니다.\n\n` +
+            `계속하시겠습니까?`
+        );
+        if (!proceed) return;
+    }
+
     elements.startReview.disabled = true;
     elements.startReview.textContent = '검수 중...';
     elements.reviewLogArea.innerHTML = '';
@@ -748,9 +803,11 @@ async function startReview() {
             result = await window.lawpro.runGeminiReview(folderPath);
         } else if (selectedAI === 'openai') {
             result = await window.lawpro.runOpenaiReview(folderPath);
+        } else if (selectedAI === 'claude') {
+            result = await window.lawpro.runClaudeReview(folderPath);
         }
 
-        if (result.success) {
+        if (result && result.success) {
             addReviewLog('success', '모든 검수가 완료되었습니다!');
         } else {
             addReviewLog('warning', '일부 파일 검수에 실패했습니다');
@@ -815,17 +872,7 @@ function handleReviewLog(data) {
 // ============================================================
 // API 키 저장
 // ============================================================
-async function saveUpstageKey() {
-    const key = elements.upstageKeyInput.value.trim();
-    await window.lawpro.saveUpstageKey(key);
-    if (elements.settingsUpstageKey) elements.settingsUpstageKey.value = key;
-}
-
-async function saveUpstageKeyFromSettings() {
-    const key = elements.settingsUpstageKey.value.trim();
-    await window.lawpro.saveUpstageKey(key);
-    elements.upstageKeyInput.value = key;
-}
+// Upstage API 키는 앱 내장 (key_vault.py)으로 자동 관리됩니다
 
 // ============================================================
 // 패키지 설치

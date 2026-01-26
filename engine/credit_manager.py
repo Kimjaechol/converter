@@ -5,8 +5,13 @@ LawPro Fast Converter - Credit Manager
 문서 변환 크레딧 관리 시스템
 
 Pricing (부가세 별도):
-- 이미지 PDF/이미지 파일 (OCR): 장당 50원
-- 일반 문서 (DOCX, HWPX, XLSX, PPTX, 디지털 PDF): 장당 20원
+■ 본인 API 키 사용 시:
+  - 이미지 PDF/이미지 파일 (OCR): 장당 50원
+  - 일반 문서 (DOCX, HWPX, XLSX, PPTX, 디지털 PDF): 무료
+
+■ API 키 없이 사용 시 (회사 제공):
+  - 이미지 PDF/이미지 파일 (OCR): 장당 70원
+  - 일반 문서: 장당 20원
 
 Admin:
 - ID: admin / PW: 3436 → 무제한 크레딧
@@ -27,8 +32,13 @@ from pathlib import Path
 # ============================================================
 # 크레딧 요금 설정
 # ============================================================
-CREDIT_PER_PAGE_OCR = 50       # 이미지 PDF/이미지 파일 (OCR 포함): 장당 50원 (부가세 별도)
-CREDIT_PER_PAGE_GENERAL = 20   # 일반 문서 (Gemini 교정만): 장당 20원 (부가세 별도)
+# 본인 API 키 사용 시
+CREDIT_PER_PAGE_OCR = 50           # 이미지 PDF/이미지 파일 (OCR 포함): 장당 50원 (부가세 별도)
+CREDIT_PER_PAGE_GENERAL = 0        # 일반 문서: 무료 (본인 API 키 사용 시)
+
+# API 키 없이 사용 시 (회사 제공 키 사용)
+CREDIT_PER_PAGE_OCR_NOKEY = 70     # 이미지 PDF/이미지 파일 (OCR): 장당 70원 (부가세 별도)
+CREDIT_PER_PAGE_GENERAL_NOKEY = 20 # 일반 문서: 장당 20원 (부가세 별도)
 
 WELCOME_CREDITS = 1000          # 가입환영 크레딧
 
@@ -74,29 +84,32 @@ def is_image_pdf(file_path: str, is_digital: bool = None) -> bool:
     return False
 
 
-def get_credit_per_page(file_path: str, is_digital_pdf: bool = None) -> int:
+def get_credit_per_page(file_path: str, is_digital_pdf: bool = None, has_own_key: bool = True) -> int:
     """
     파일 유형별 장당 크레딧 반환
 
     Args:
         file_path: 파일 경로
         is_digital_pdf: PDF인 경우 디지털 여부 (True=디지털, False=이미지)
+        has_own_key: 사용자가 본인 API 키를 사용하는지 여부
 
     Returns:
-        장당 크레딧 (50 또는 20)
+        장당 크레딧
+        - 본인 키 사용: OCR=50, 일반=0(무료)
+        - 키 없음: OCR=70, 일반=20
     """
     ext = os.path.splitext(file_path)[1].lower()
 
-    # 이미지 파일 → OCR 요금 (50원)
+    # 이미지 파일 → OCR 요금
     if ext in OCR_EXTENSIONS:
-        return CREDIT_PER_PAGE_OCR
+        return CREDIT_PER_PAGE_OCR if has_own_key else CREDIT_PER_PAGE_OCR_NOKEY
 
-    # 이미지 PDF → OCR 요금 (50원)
+    # 이미지 PDF → OCR 요금
     if ext == '.pdf' and is_digital_pdf is False:
-        return CREDIT_PER_PAGE_OCR
+        return CREDIT_PER_PAGE_OCR if has_own_key else CREDIT_PER_PAGE_OCR_NOKEY
 
-    # 그 외 (디지털 PDF, docx, hwpx, xlsx, pptx 등) → 일반 요금 (20원)
-    return CREDIT_PER_PAGE_GENERAL
+    # 그 외 (디지털 PDF, docx, hwpx, xlsx, pptx 등) → 일반 요금
+    return CREDIT_PER_PAGE_GENERAL if has_own_key else CREDIT_PER_PAGE_GENERAL_NOKEY
 
 
 class CreditManager:
@@ -321,16 +334,23 @@ class CreditManager:
         # 서버 데이터와 동기화 시도
         self._sync_from_users()
 
+        credits = self.data["credits"]
+        is_admin = self.data["is_admin"]
+
         return {
-            "credits": self.data["credits"],
-            "is_admin": self.data["is_admin"],
+            "credits": credits,
+            "is_admin": is_admin,
             "user_id": self.data.get("user_id", ""),
             "user_email": self.data.get("user_email", ""),
-            "pages_available_ocr": self.data["credits"] // CREDIT_PER_PAGE_OCR if not self.data["is_admin"] else 999999,
-            "pages_available_general": self.data["credits"] // CREDIT_PER_PAGE_GENERAL if not self.data["is_admin"] else 999999,
+            "pages_available_ocr": credits // CREDIT_PER_PAGE_OCR if (not is_admin and CREDIT_PER_PAGE_OCR > 0) else 999999,
+            "pages_available_general": 999999 if (is_admin or CREDIT_PER_PAGE_GENERAL == 0) else credits // CREDIT_PER_PAGE_GENERAL,
             "total_pages_converted": self.data.get("total_pages_converted", 0),
+            # 본인 키 사용 시 요금
             "credit_per_page_ocr": CREDIT_PER_PAGE_OCR,
-            "credit_per_page_general": CREDIT_PER_PAGE_GENERAL
+            "credit_per_page_general": CREDIT_PER_PAGE_GENERAL,
+            # 키 없이 사용 시 요금
+            "credit_per_page_ocr_nokey": CREDIT_PER_PAGE_OCR_NOKEY,
+            "credit_per_page_general_nokey": CREDIT_PER_PAGE_GENERAL_NOKEY
         }
 
     def check_credits(self, page_count: int, credit_per_page: int = None) -> Tuple[bool, int, str]:

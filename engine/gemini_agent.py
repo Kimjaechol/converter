@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-LawPro Fast Converter - Gemini Backup Agent
+LawPro Fast Converter - Gemini Review Agent
 =============================================
-Claude 사용량 소진 시 Gemini로 문서 검수를 수행하는 백업 에이전트
+Gemini AI로 문서 검수를 수행하는 에이전트 (기본 권장)
 
 Supported Models:
-- gemini-2.0-flash (최신, 권장)
-- gemini-1.5-flash (안정적)
-- gemini-1.5-pro (고품질)
+- gemini-3-flash-preview (최신, 권장)
+- gemini-2.5-flash (안정적)
+- gemini-2.0-flash (경제적)
 """
 
 import os
@@ -271,7 +271,11 @@ class GeminiReviewAgent:
 
     # 지원 모델 목록
     MODELS = {
-        "flash-2.0": "gemini-2.0-flash-exp",
+        "gemini-3-flash-preview": "gemini-3-flash-preview",
+        "gemini-2.5-flash": "gemini-2.5-flash",
+        "gemini-2.0-flash": "gemini-2.0-flash",
+        # 하위호환
+        "flash-2.0": "gemini-2.0-flash",
         "flash-1.5": "gemini-1.5-flash",
         "pro-1.5": "gemini-1.5-pro"
     }
@@ -280,9 +284,9 @@ class GeminiReviewAgent:
     MAX_INPUT_TOKENS = 900000  # 1M 토큰 모델 기준
     CHUNK_SIZE = 30000  # 문자 단위 청크 크기
 
-    def __init__(self, api_key: str, model_name: str = "flash-2.0"):
+    def __init__(self, api_key: str, model_name: str = "gemini-3-flash-preview"):
         self.api_key = api_key
-        self.model_id = self.MODELS.get(model_name, self.MODELS["flash-2.0"])
+        self.model_id = self.MODELS.get(model_name, self.MODELS["gemini-3-flash-preview"])
 
         # API 설정
         genai.configure(api_key=api_key)
@@ -458,7 +462,7 @@ HTML 태그는 그대로 유지하고 텍스트 오류만 수정합니다.
 # ============================================================
 # 배치 처리
 # ============================================================
-def batch_review(folder_path: str, api_key: str, model_name: str = "flash-2.0"):
+def batch_review(folder_path: str, api_key: str, model_name: str = "gemini-3-flash-preview"):
     """
     폴더 내 모든 문서 배치 검수
 
@@ -599,7 +603,7 @@ def batch_review(folder_path: str, api_key: str, model_name: str = "flash-2.0"):
 # ============================================================
 # 단일 파일 처리
 # ============================================================
-def review_single_file(file_path: str, api_key: str, model_name: str = "flash-2.0") -> dict:
+def review_single_file(file_path: str, api_key: str, model_name: str = "gemini-3-flash-preview") -> dict:
     """
     단일 파일 검수
 
@@ -631,6 +635,6 @@ if __name__ == "__main__":
 
     folder_path = sys.argv[1]
     api_key = sys.argv[2]
-    model_name = sys.argv[3] if len(sys.argv) > 3 else "flash-2.0"
+    model_name = sys.argv[3] if len(sys.argv) > 3 else "gemini-3-flash-preview"
 
     batch_review(folder_path, api_key, model_name)
